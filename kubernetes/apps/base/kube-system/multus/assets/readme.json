@@ -1,0 +1,62 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 CNI",
+    "title": "multus",
+    "tagline": "Gives selected home-automation pods a second network interface on the IoT VLAN, while every pod keeps its Cilium interface.",
+    "chips": [
+      "SECOND NIC \u2022 MACVLAN",
+      "IOT VLAN 3",
+      "VPN VLAN 90",
+      "CILIUM STAYS PRIMARY"
+    ],
+    "icon": "network",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/multus"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A second interface, chosen per pod",
+    "steps": [
+      {
+        "icon": "cable",
+        "title": "Attach",
+        "text": "A pod names the multus-iot network in its annotation. Multus adds the interface, leaving eth0 on Cilium.",
+        "scene": "a pod block with a second cable plugged into its side"
+      },
+      {
+        "icon": "network",
+        "title": "Macvlan",
+        "text": "The macvlan plugin puts net1 directly on bond0.3, so the pod has an address on the IoT VLAN.",
+        "scene": "a VLAN bus with a branch into the pod"
+      },
+      {
+        "icon": "git-branch",
+        "title": "Address",
+        "text": "Static IPAM assigns the address from the pod annotation. The default route goes to the IoT gateway.",
+        "scene": "a blank address tag hanging from a route arrow, no readable text"
+      },
+      {
+        "icon": "arrow-right-left",
+        "title": "Return path",
+        "text": "The sbr plugin keeps replies leaving on the interface they arrived on, so both networks stay reachable.",
+        "scene": "two paths looping back on themselves"
+      }
+    ],
+    "facts": [
+      {
+        "value": "VLAN 3",
+        "label": "IoT network, bond0.3"
+      },
+      {
+        "value": "VLAN 90",
+        "label": "VPN network, bond0.90"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Multus attaches a second network to a pod",
+    "title": "How Multus adds a second interface",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  }
+}
