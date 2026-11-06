@@ -1,0 +1,59 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 TRASH GUIDES",
+    "title": "recyclarr",
+    "tagline": "Syncs TRaSH Guides quality profiles and custom-format scores into Radarr and Sonarr once a day, so release ranking is kept in Git.",
+    "chips": [
+      "DAILY SYNC",
+      "TRASH_ID MATCHING",
+      "6 PROFILES",
+      "KOPIUR \u2022 CEPH + R2"
+    ],
+    "icon": "refresh-cw",
+    "status": "RECONCILED BY FLUX \u2022 downloads/recyclarr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Scores come from Git, not from the app UI",
+    "steps": [
+      {
+        "icon": "file-code",
+        "title": "Config",
+        "text": "The recyclarr.yml ConfigMap lists which TRaSH profiles and custom formats each *arr app receives.",
+        "scene": "a configuration card with a list of tags"
+      },
+      {
+        "icon": "git-branch",
+        "title": "Fetch",
+        "text": "Recyclarr reads the TRaSH Guides data and matches every profile and format by its trash_id.",
+        "scene": "a branching tree of guide documents"
+      },
+      {
+        "icon": "gauge",
+        "title": "Score",
+        "text": "It creates or updates the profiles and scores in Radarr and Sonarr, and deletes custom formats the file no longer declares.",
+        "scene": "three score sliders set on a dashboard"
+      },
+      {
+        "icon": "user-check",
+        "title": "Assign",
+        "text": "It never moves a movie or a series to another profile. Which profile a title uses is app state in Radarr and Sonarr.",
+        "scene": "a title card placed on one of several profile shelves"
+      }
+    ],
+    "facts": [
+      {
+        "value": "@DAILY",
+        "label": "schedule"
+      },
+      {
+        "value": "-35000",
+        "label": "score for a release with no English audio"
+      },
+      {
+        "value": "6",
+        "label": "profiles: 4 Radarr, 2 Sonarr"
+      }
+    ]
+  }
+}
