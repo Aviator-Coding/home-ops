@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 FEEDS",
+    "title": "rsshub",
+    "tagline": "Turns sites without feeds into RSS, caches the results in Dragonfly, and renders browser-only pages in a Playwright Chromium.",
+    "chips": [
+      "REDIS CACHE",
+      "PLAYWRIGHT SIDECAR",
+      "NO PVC",
+      "INTERNAL ONLY"
+    ],
+    "icon": "rss",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/rsshub"
+  },
+  "art": {
+    "about": "a feed generator that turns web pages into RSS, using a cache and a headless browser for hard pages",
+    "title": "How rsshub builds a feed",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A feed request, a cache check, a browser when needed",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Tokens",
+        "text": "ExternalSecret rsshub writes rsshub-secret from item rss-hub. Its template uses the default Replace merge, so only four placeholder keys are expected.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "link",
+        "title": "Request",
+        "text": "envoy-internal forwards the feed request to the rsshub service on port 80. The /healthz probe checks the app itself.",
+        "scene": "a request arrow entering a gateway arch"
+      },
+      {
+        "icon": "database",
+        "title": "Cache",
+        "text": "CACHE_TYPE is redis, pointed at the rsshub-dragonfly cache. Dragonfly is cache-only, so a restart empties it.",
+        "scene": "a fast cache block with a refresh arrow"
+      },
+      {
+        "icon": "chrome",
+        "title": "Browse",
+        "text": "Routes that need a real browser call the playwright service over WebSocket on port 3000. That pod has no PVC.",
+        "scene": "a headless browser window rendering a page"
+      },
+      {
+        "icon": "rss",
+        "title": "Feed",
+        "text": "The app returns RSS, Atom or JSON feeds to any reader. The app itself keeps no volume.",
+        "scene": "a feed card with signal waves"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "HelmReleases"
+      },
+      {
+        "value": "0",
+        "label": "PVCs in this app"
+      },
+      {
+        "value": "2 GI",
+        "label": "Chromium memory limit"
+      },
+      {
+        "value": "512 MI",
+        "label": "app memory request"
+      }
+    ]
+  }
+}
