@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MEDIA \u2022 EBOOKS",
+    "title": "calibre-web-automated",
+    "tagline": "Imports ebooks from the NAS ingest folder into a Calibre library and serves that library as a web reader.",
+    "chips": [
+      "INGEST \u2022 NFS",
+      "LIBRARY ON NAS",
+      "GOODREADS \u2022 HARDCOVER",
+      "KOPIUR \u2022 R2"
+    ],
+    "icon": "book-open",
+    "status": "RECONCILED BY FLUX \u2022 media/calibre-web-automated"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Ingest folder in, Calibre library out",
+    "steps": [
+      {
+        "icon": "download",
+        "title": "Ingest",
+        "text": "Books land in the NFS ingest folder on the NAS, written by the book download pipeline. CWA watches the folder and starts each import.",
+        "scene": "a book dropping into a tray from a download arrow"
+      },
+      {
+        "icon": "book-marked",
+        "title": "Import",
+        "text": "CWA adds each book to the Calibre library on the NAS. That library sits on NFS and is not part of the kopiur snapshot.",
+        "scene": "a shelf of glowing books"
+      },
+      {
+        "icon": "book-open",
+        "title": "Read",
+        "text": "The web reader serves the library on envoy-internal, at the calibre route.",
+        "scene": "an open book beside a browser window"
+      },
+      {
+        "icon": "key-round",
+        "title": "Metadata",
+        "text": "Goodreads and Hardcover tokens come from items goodreads and hardcover, through one Secret.",
+        "scene": "a key unlocking a book cover"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Keep",
+        "text": "kopiur snapshots the 20 GiB config claim to R2 each day. The ingest and library folders stay on the NAS.",
+        "scene": "snapshot cards flowing into a cloud bucket"
+      }
+    ],
+    "facts": [
+      {
+        "value": "600Mi",
+        "label": "memory limit"
+      },
+      {
+        "value": "20 GI",
+        "label": "config claim"
+      },
+      {
+        "value": "2000",
+        "label": "PUID and PGID"
+      },
+      {
+        "value": "NFS",
+        "label": "ingest and library on the NAS"
+      }
+    ]
+  },
+  "art": {
+    "about": "how an ebook is ingested, imported and read",
+    "title": "How calibre-web-automated imports books",
+    "model": "gpt",
+    "subject": ""
+  }
+}
