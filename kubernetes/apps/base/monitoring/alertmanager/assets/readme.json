@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MONITORING \u2022 ALERTING",
+    "title": "alertmanager",
+    "tagline": "Routes every Prometheus alert to Pushover by severity, and pings Healthchecks.io while the Watchdog fires.",
+    "chips": [
+      "3 SEVERITY ROUTES",
+      "PUSHOVER \u2022 HEALTHCHECKS",
+      "CEPH-BLOCK 50 MI",
+      "STANDALONE, NOT OPERATOR"
+    ],
+    "icon": "bell-ring",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/alertmanager"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a firing rule to a phone that rings only when it should",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Secret",
+        "text": "ExternalSecret alertmanager-secret pulls the Pushover token and user key, and the Healthchecks ping URL, from 1Password.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "route",
+        "title": "Route",
+        "text": "Prometheus posts each alert here. The root route groups by alertname and namespace, then picks a receiver by severity.",
+        "scene": "a branching railway track with switches"
+      },
+      {
+        "icon": "siren",
+        "title": "Page",
+        "text": "Critical sounds the Pushover siren at priority 2 until it is acknowledged or 30 minutes pass. Warning is audible. Info stays silent.",
+        "scene": "a rotating siren beacon on a desk"
+      },
+      {
+        "icon": "heart-pulse",
+        "title": "Heartbeat",
+        "text": "The Watchdog alert always fires. Each firing ping reaches Healthchecks.io every 5 minutes; a missed ping is the dead-man signal.",
+        "scene": "a heartbeat trace on a monitor"
+      },
+      {
+        "icon": "bell-off",
+        "title": "Inhibit",
+        "text": "The inhibit rules mute info alerts while a warning or critical fires in the same namespace. InfoInhibitor covers the case where no warning is firing.",
+        "scene": "a bell with a slash over a stack of cards"
+      }
+    ],
+    "facts": [
+      {
+        "value": "30 M",
+        "label": "max siren time per critical"
+      },
+      {
+        "value": "6 H",
+        "label": "critical repeat interval"
+      },
+      {
+        "value": "12 H",
+        "label": "warning repeat interval"
+      },
+      {
+        "value": "5 M",
+        "label": "Watchdog ping period"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Prometheus alerts become a phone notification by severity",
+    "title": "How alertmanager routes an alert",
+    "model": "gpt",
+    "subject": ""
+  }
+}
