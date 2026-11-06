@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Semantic pin for the 2026-08-22 keep-in-cluster Renovate binding conditions.
 
-The captain's four conditions were written against mogenius/renovate-operator;
-what shipped is the official Helm chart + GitHub-App CronJob. Re-measured
-2026-08-31:
+The captain's four conditions were written against mogenius/renovate-operator.
+The official-chart CronJob shipped first (2026-08-25); the operator replaced it
+on 2026-11-05:
 
-  1. Metrics/ServiceMonitor   - substituted with kube-state-metrics CronJob alerts
-  2. Alert-on-silence         - RenovateRunMissing / NeverSucceeded / CronJobAbsent
+  1. Metrics/ServiceMonitor   - operator chart metrics + ServiceMonitor
+  2. Alert-on-silence         - RenovateRunMissing / RenovateOperatorAbsent
   3. Docker Hub hostRules     - formally retired (anonymous lookups measured safe)
   4. Chart-pin automerge off  - closed via matchFileNames exclusion in autoMerge
 
@@ -16,11 +16,11 @@ This test does not grep source text as its evidence. It:
   2. Simulates Renovate's last-match-wins evaluation against concrete dependency
      updates (file path + datasource + update type + package name), including
      the live OCIRepository path for Renovate's own chart.
-  3. Renders `kubernetes/apps/base/renovate/app` via kustomize and asserts the
-     live monitoring contract plus the intentional absence of hostRules /
-     RENOVATE_HOST_RULES on the shipped CronJob design.
+  3. Renders `kubernetes/apps/base/renovate/renovate-operator/{app,jobs}` via
+     kustomize and asserts the live monitoring and GitHub App contract plus the
+     intentional absence of hostRules / RENOVATE_HOST_RULES.
 
-Live Docker Hub rate-limit measurements and the next scheduled CronJob run
+Live Docker Hub rate-limit measurements and the next scheduled run
 after merge remain post-merge operational gates; this pins the GitOps contract
 that must hold before merge.
 """
@@ -41,11 +41,14 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 AUTOMERGE = ROOT / ".renovate/autoMerge.json5"
-RENOVATE_APP = ROOT / "kubernetes/apps/base/renovate/app"
+RENOVATE_APP = ROOT / "kubernetes/apps/base/renovate/renovate-operator/app"
+RENOVATE_JOBS = ROOT / "kubernetes/apps/base/renovate/renovate-operator/jobs"
 
 # Live chart pin path Renovate actually tracks (OCIRepository manager).
-RENOVATE_CHART_FILE = "kubernetes/apps/base/renovate/app/ocirepository.yaml"
-RENOVATE_CHART_PACKAGE = "ghcr.io/renovatebot/charts/renovate"
+RENOVATE_CHART_FILE = "kubernetes/apps/base/renovate/renovate-operator/app/ocirepository.yaml"
+RENOVATE_CHART_PACKAGE = "ghcr.io/mogenius/helm-charts/renovate-operator"
+# The Renovate runner image is pinned on the RenovateJob (kubernetes manager).
+RENOVATE_JOB_FILE = "kubernetes/apps/base/renovate/renovate-operator/jobs/renovatejob.yaml"
 
 KOPIUR_PACKAGE_NAMES = frozenset(
     {
@@ -59,10 +62,10 @@ KOPIUR_PACKAGE_NAMES = frozenset(
 
 REQUIRED_SILENCE_ALERTS = frozenset(
     {
-        "RenovateJobFailed",
+        "RenovateRunFailed",
         "RenovateRunMissing",
-        "RenovateNeverSucceeded",
-        "RenovateCronJobAbsent",
+        "RenovateDiscoveryEmpty",
+        "RenovateOperatorAbsent",
     }
 )
 
@@ -307,14 +310,9 @@ def test_renovate_self_update_blocked(rules: list[dict[str, Any]]) -> None:
         DepUpdate(RENOVATE_CHART_PACKAGE, "docker", "minor", RENOVATE_CHART_FILE),
         DepUpdate(RENOVATE_CHART_PACKAGE, "helm", "patch", RENOVATE_CHART_FILE),
         DepUpdate(RENOVATE_CHART_PACKAGE, "helm", "minor", RENOVATE_CHART_FILE),
-        # Path match must also cover a hypothetical helm-values image.tag under
-        # the same tree (the exclusion's stated secondary purpose).
-        DepUpdate(
-            "ghcr.io/renovatebot/renovate",
-            "docker",
-            "minor",
-            "kubernetes/apps/base/renovate/app/helmrelease.yaml",
-        ),
+        # The runner image on the RenovateJob is the self-update that matters most.
+        DepUpdate("ghcr.io/renovatebot/renovate", "docker", "patch", RENOVATE_JOB_FILE, manager="kubernetes"),
+        DepUpdate("ghcr.io/renovatebot/renovate", "docker", "minor", RENOVATE_JOB_FILE, manager="kubernetes"),
     ]
     for dep in cases:
         winner, idx = winning_automerge(rules, dep)
@@ -471,13 +469,13 @@ def test_cluster_critical_and_zero_ver_minors_are_reviewed(rules: list[dict[str,
 
 
 def test_rendered_renovate_app_contract(docs: list[dict[str, Any]]) -> None:
-    """Conditions 1-3 as shipped: silence alerts live; hostRules intentionally absent."""
+    """Conditions 1-3 as shipped: metrics + silence alerts live; hostRules intentionally absent."""
     oci = [d for d in docs if d.get("kind") == "OCIRepository"]
     require(len(oci) == 1, f"expected 1 OCIRepository, got {len(oci)}")
     url = (oci[0].get("spec") or {}).get("url", "")
     require(
-        url.rstrip("/") == "oci://ghcr.io/renovatebot/charts/renovate",
-        f"OCIRepository must track Renovate's own chart, got {url!r}",
+        url.rstrip("/") == f"oci://{RENOVATE_CHART_PACKAGE}",
+        f"OCIRepository must track the renovate-operator chart, got {url!r}",
     )
     ref = (oci[0].get("spec") or {}).get("ref") or {}
     require("tag" in ref, f"OCIRepository must pin an exact tag, got ref={ref!r}")
@@ -485,6 +483,11 @@ def test_rendered_renovate_app_contract(docs: list[dict[str, Any]]) -> None:
     hrs = [d for d in docs if d.get("kind") == "HelmRelease"]
     require(len(hrs) == 1, f"expected 1 HelmRelease, got {len(hrs)}")
     values = (hrs[0].get("spec") or {}).get("values") or {}
+    metrics = values.get("metrics") or {}
+    require(
+        metrics.get("enabled") is True and (metrics.get("serviceMonitor") or {}).get("enabled") is True,
+        f"condition 1: operator metrics and ServiceMonitor must be enabled, got {metrics!r}",
+    )
 
     # Walk the rendered values tree for host-rule / dockerconfig wiring. Condition
     # 3 is formally retired: the shipped design must not claim credentials it
@@ -510,6 +513,8 @@ def test_rendered_renovate_app_contract(docs: list[dict[str, Any]]) -> None:
 
     host_hits: list[str] = []
     walk(values, "values", host_hits)
+    for job in (d for d in docs if d.get("kind") == "RenovateJob"):
+        walk(job.get("spec") or {}, f"RenovateJob/{job['metadata']['name']}", host_hits)
     require(
         not host_hits,
         "condition 3 is retired: rendered HelmRelease must not declare hostRules / "
@@ -544,6 +549,45 @@ def test_rendered_renovate_app_contract(docs: list[dict[str, Any]]) -> None:
     )
 
 
+def test_rendered_renovate_job_contract(docs: list[dict[str, Any]]) -> None:
+    """One RenovateJob, scoped to home-ops, authenticated by the GitHub App secret."""
+    jobs = [d for d in docs if d.get("kind") == "RenovateJob"]
+    require(len(jobs) == 1, f"expected 1 RenovateJob, got {len(jobs)}")
+    spec = jobs[0].get("spec") or {}
+    require(
+        spec.get("discoveryFilters") == ["skrumbach/home-ops"],
+        f"RenovateJob must discover only skrumbach/home-ops, got {spec.get('discoveryFilters')!r}",
+    )
+    require(
+        str(spec.get("image", "")).startswith("ghcr.io/renovatebot/renovate:"),
+        f"RenovateJob must pin ghcr.io/renovatebot/renovate:<tag>, got {spec.get('image')!r}",
+    )
+    ref = spec.get("githubAppReference") or {}
+    es = [d for d in docs if d.get("kind") == "ExternalSecret"]
+    require(len(es) == 1, f"expected 1 ExternalSecret, got {len(es)}")
+    target = (es[0].get("spec") or {}).get("target") or {}
+    template = target.get("template") or {}
+    require(
+        ref.get("secretName") == target.get("name"),
+        f"githubAppReference.secretName {ref.get('secretName')!r} must be the ExternalSecret target {target.get('name')!r}",
+    )
+    keys = set((template.get("data") or {}).keys())
+    wanted = {ref.get("appIdSecretKey"), ref.get("installationIdSecretKey"), ref.get("pemSecretKey")}
+    require(None not in wanted and wanted <= keys, f"secret keys {sorted(keys)} must cover githubAppReference {ref!r}")
+    labels = ((template.get("metadata") or {}).get("labels")) or {}
+    require(
+        labels.get("renovate-operator.mogenius.com/allow-ref") == "true",
+        "the GitHub App secret must carry renovate-operator.mogenius.com/allow-ref: \"true\"",
+    )
+    require(
+        all(
+            part in str((template.get("data") or {}).get(ref.get("pemSecretKey"), ""))
+            for part in ("-----BEGIN {{ $type }}-----", '$type := "RSA PRIVATE KEY"')
+        ),
+        "the operator parses only a PEM: the template must wrap the headerless 1Password body",
+    )
+
+
 def main() -> int:
     failed = 0
     passed = 0
@@ -573,8 +617,10 @@ def main() -> int:
         run("cluster_critical_and_zero_ver_minors_are_reviewed", test_cluster_critical_and_zero_ver_minors_are_reviewed, rules)
 
     docs = run("kustomize_build_renovate_app", kustomize_build, RENOVATE_APP)
-    if docs is not None:
-        run("rendered_renovate_app_contract", test_rendered_renovate_app_contract, docs)
+    job_docs = run("kustomize_build_renovate_jobs", kustomize_build, RENOVATE_JOBS)
+    if docs is not None and job_docs is not None:
+        run("rendered_renovate_app_contract", test_rendered_renovate_app_contract, docs + job_docs)
+        run("rendered_renovate_job_contract", test_rendered_renovate_job_contract, job_docs)
 
     print(f"Summary: {passed} passed, {failed} failed")
     if failed:

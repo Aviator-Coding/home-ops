@@ -5,17 +5,17 @@ description: "Read before editing .renovaterc.json5, .renovate/**, any # renovat
 
 # Renovate
 
-The live writer is the in-cluster CronJob
-(`kubernetes/apps/base/renovate/`, chart `oci://ghcr.io/renovatebot/charts/renovate`,
+The live writer is the in-cluster mogenius renovate-operator
+(`kubernetes/apps/base/renovate/renovate-operator/`, one `RenovateJob` `home-ops`,
 hourly). `.github/workflows/renovate.yaml` is the rollback path and is
-manual-dispatch only (no schedule, no `push` trigger), so it never runs beside the CronJob.
+manual-dispatch only (no schedule, no `push` trigger), so it never runs beside the operator.
 
 ## Tripwires
 
-1. **A config change lands on the next CronJob pass (up to 1 hour).** The
-   owner can start one at once with
-   `kubectl -n renovate create job --from=cronjob/renovate`. Do not dispatch
-   `renovate.yaml` while a CronJob pass runs: two writers race on the same branches.
+1. **A config change lands on the next hourly run.** The owner can start one at
+   once: `kubectl -n renovate annotate renovatejob home-ops
+   renovate-operator.mogenius.com/schedule-all=true`, or the UI. Do not dispatch
+   `renovate.yaml` unless the RenovateJob is suspended: two writers race on the same branches.
 2. **Last match wins.** A later `packageRule` overrides an earlier one.
    Every `automerge: false` rule sits after the three blanket automerge rules.
    The "MUST stay after" comments are the ordering constraint. Sibling
@@ -75,7 +75,7 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
 | Rules | `.renovate/{autoMerge,customManagers,grafanaDashboards,groups,labels,overrides,talos}.json5` |
 | In-cluster app | `kubernetes/apps/base/renovate/` |
 | GitHub App token | 1Password `Homelab/renovate` (`BOT_APP_ID`, `BOT_APP_PRIVATE_KEY`) |
-| Alerts | `app/prometheusrule.yaml` (kube-state-metrics CronJob timestamps; the chart has no metrics endpoint) |
+| Alerts | `renovate-operator/app/prometheusrule.yaml` (operator metrics, ServiceMonitor) |
 
 ## Procedures
 

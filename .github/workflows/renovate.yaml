@@ -3,7 +3,7 @@
 name: Renovate
 
 on:
-  # Manual only: the in-cluster CronJob is the live writer. Skill `renovate`.
+  # Manual only: the in-cluster renovate-operator is the live writer. Skill `renovate`.
   workflow_dispatch:
     inputs:
       dryRun:

@@ -1,0 +1,66 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# Operator metrics (docs/operations/metrics.md upstream). Every series carries
+# renovate_job; absent() covers a dead operator, a missing ServiceMonitor and a
+# RenovateJob that Flux never applied.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: renovate-rules
+spec:
+  groups:
+    - name: renovate.rules
+      rules:
+        - alert: RenovateRunFailed
+          expr: max by (project) (renovate_operator_run_failed{renovate_job="home-ops"}) == 1
+          for: 2h
+          annotations:
+            summary: >-
+              Renovate's runs for {{ $labels.project }} have failed for 2h (two
+              hourly runs). Open the renovate UI or the latest Job logs in the
+              renovate namespace.
+          labels:
+            severity: warning
+        - alert: RenovateRunMissing
+          expr: |-
+            (
+              sum(increase(renovate_operator_project_executions_total{renovate_job="home-ops", status="completed"}[8h]))
+              or vector(0)
+            ) == 0
+            and on()
+            sum(renovate_operator_renovatejob_suspended{renovate_job="home-ops"} offset 8h) >= 0
+          for: 15m
+          annotations:
+            summary: >-
+              Renovate has not completed a successful run in 8h. Check that the
+              RenovateJob is not suspended and that the Homelab/renovate
+              1Password item still resolves (BOT_APP_ID, BOT_APP_PRIVATE_KEY).
+          labels:
+            severity: critical
+        - alert: RenovateDiscoveryEmpty
+          expr: renovate_operator_discovered_repositories{renovate_job="home-ops"} == 0
+          for: 2h
+          annotations:
+            summary: >-
+              Renovate discovery found no repository. The GitHub App
+              installation may have lost access to skrumbach/home-ops, or the
+              token could not be minted.
+          labels:
+            severity: critical
+        - alert: RenovateJobSuspended
+          expr: renovate_operator_renovatejob_suspended{renovate_job="home-ops"} == 1
+          for: 12h
+          annotations:
+            summary: The home-ops RenovateJob has been suspended for 12h.
+          labels:
+            severity: warning
+        - alert: RenovateOperatorAbsent
+          expr: absent(renovate_operator_renovatejob_suspended{renovate_job="home-ops"})
+          for: 1h
+          annotations:
+            summary: >-
+              No metrics for the home-ops RenovateJob. The operator is down, its
+              ServiceMonitor is not scraped, or Flux did not apply
+              kubernetes/apps/base/renovate/renovate-operator/jobs.
+          labels:
+            severity: critical

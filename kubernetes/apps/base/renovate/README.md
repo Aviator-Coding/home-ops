@@ -1,9 +1,8 @@
 # renovate
 
-In-cluster CronJob, hourly. The GitHub Actions workflow is rollback
-only: its schedule is commented out, and its `push` trigger still overlaps
-this writer. Suspend that workflow before merging `.renovaterc.json5` or
-`.renovate/**`.
+mogenius `renovate-operator` with one hourly `RenovateJob` (`home-ops`). The
+GitHub Actions workflow is rollback only (manual dispatch). UI at
+`renovate.${SECRET_DOMAIN}`, internal route, no auth.
 
 Skill `renovate`
 ([operations.md](../../../../.agents/skills/renovate/references/operations.md),
@@ -11,11 +10,10 @@ Skill `renovate`
 
 ## Rollback
 
-1. Uncomment the `schedule` block in `.github/workflows/renovate.yaml` and merge.
-2. Optionally set `env.RENOVATE_DRY_RUN: full` on the HelmRelease so the
-   CronJob stops writing. Do not set that env to `"false"`.
+1. Set `spec.suspend: true` on `renovate-operator/jobs/renovatejob.yaml` and merge.
+2. Dispatch `.github/workflows/renovate.yaml` (or add a `schedule` to it).
 
 GitHub App fields: 1Password `Homelab/renovate` (`BOT_APP_ID`,
-`BOT_APP_PRIVATE_KEY`). Alerts watch kube-state-metrics CronJob timestamps
-(`RenovateJobFailed`, `RenovateRunMissing`, `RenovateNeverSucceeded`,
-`RenovateCronJobAbsent`). The chart has no metrics endpoint.
+`BOT_APP_PRIVATE_KEY`); the installation ID is in `jobs/externalsecret.yaml`.
+Alerts use the operator's own metrics (`RenovateRunFailed`, `RenovateRunMissing`,
+`RenovateDiscoveryEmpty`, `RenovateOperatorAbsent`).
