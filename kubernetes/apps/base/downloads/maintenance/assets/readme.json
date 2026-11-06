@@ -1,0 +1,63 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 MAINTENANCE",
+    "title": "maintenance",
+    "tagline": "A daily janitor that clears dead unpack attempts from the shared downloads volume, and alerts before SABnzbd pauses.",
+    "chips": [
+      "DAILY 05:30",
+      "DEPTH 2 ONLY",
+      "CAPACITY ALERTS",
+      "NO BACKUP"
+    ],
+    "icon": "trash-2",
+    "status": "RECONCILED BY FLUX \u2022 downloads/maintenance"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Clear the dead attempts, warn before the pause",
+    "steps": [
+      {
+        "icon": "timer",
+        "title": "Schedule",
+        "text": "The downloads-janitor CronJob runs daily at 05:30 and mounts the shared-downloads claim at /data/downloads.",
+        "scene": "a clock face above a volume with a daily tick mark"
+      },
+      {
+        "icon": "eraser",
+        "title": "Clear",
+        "text": "It removes _UNPACK_ and _FAILED_ directories untouched for 24 hours, and empty leftover directories older than 7 days. Only depth 2 under usenet/complete is in scope.",
+        "scene": "a broom sweeping stale folder tiles into a bin"
+      },
+      {
+        "icon": "bell-ring",
+        "title": "Warn",
+        "text": "Two alerts watch free space. At 15% free it warns; at 7% it goes critical, before SABnzbd's 100G auto-pause trips.",
+        "scene": "a gauge needle crossing two red warning marks"
+      }
+    ],
+    "facts": [
+      {
+        "value": "05:30",
+        "label": "daily run"
+      },
+      {
+        "value": "24 H",
+        "label": "dead-attempt age"
+      },
+      {
+        "value": "15%",
+        "label": "warning threshold"
+      },
+      {
+        "value": "7%",
+        "label": "critical threshold"
+      }
+    ]
+  },
+  "art": {
+    "about": "a scheduled janitor for a shared volume",
+    "title": "How the downloads janitor works",
+    "model": "gpt",
+    "subject": ""
+  }
+}
