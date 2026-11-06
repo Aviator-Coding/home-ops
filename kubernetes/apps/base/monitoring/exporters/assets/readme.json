@@ -1,0 +1,69 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MONITORING \u2022 EXPORTERS",
+    "title": "graphite-exporter",
+    "tagline": "Takes Graphite plaintext from TrueNAS on TCP and UDP 2003, maps it to labelled Prometheus series, and serves them on 9108.",
+    "chips": [
+      "LOADBALANCER \u2022 2003",
+      "TRUENAS MAPPING",
+      "2 REPLICAS",
+      "PROMETHEUS :9108"
+    ],
+    "icon": "waypoints",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/graphite-exporter"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Graphite lines in, labelled Prometheus series out",
+    "steps": [
+      {
+        "icon": "network",
+        "title": "Listen",
+        "text": "A LoadBalancer Service exposes TCP and UDP 2003. TrueNAS sends Graphite plaintext to that address.",
+        "scene": "a cable seated in a network port"
+      },
+      {
+        "icon": "route",
+        "title": "Map",
+        "text": "graphite_mapping.conf turns truenas.<host>.<metric> names into one metric name with job, instance and kind labels.",
+        "scene": "a dotted name splitting into labelled tags"
+      },
+      {
+        "icon": "layers",
+        "title": "Serve",
+        "text": "Two replicas run behind the Service. Each mounts the same mapping from a ConfigMap and serves metrics on 9108.",
+        "scene": "two identical server racks side by side"
+      },
+      {
+        "icon": "activity",
+        "title": "Scrape",
+        "text": "A ServiceMonitor scrapes port 9108 every minute. honorLabels keeps the job and instance labels from the mapping.",
+        "scene": "a meter reading a stream of samples"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2003",
+        "label": "Graphite TCP and UDP port"
+      },
+      {
+        "value": "9108",
+        "label": "Prometheus metrics port"
+      },
+      {
+        "value": "2",
+        "label": "replicas"
+      },
+      {
+        "value": "128 MI",
+        "label": "memory limit per replica"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Graphite plaintext becomes labelled Prometheus series",
+    "title": "How graphite-exporter maps metrics",
+    "model": "gpt",
+    "subject": ""
+  }
+}
