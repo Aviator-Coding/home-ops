@@ -150,6 +150,7 @@ Skills live in `.agents/skills/<name>/SKILL.md` (`.claude/skills` is a symlink).
 | `b70-llm-serving` | vllm and embedding-gpu flags, memory, alerts, embedding checks |
 | `intel-gpu` | GPU device plugins, `devic.es/b70*`, VA-API, GPU telemetry |
 | `observability` | PrometheusRule, Service/PodMonitor, Alertmanager, Gatus, Grafana, probes |
+| `branded-readmes` | writing or refreshing an app README, its banner/infographic assets, `readme.py list` stale checks |
 | `media-stack` | *arr apps, SABnzbd, Recyclarr, Bazarr, Plex, backlog searches |
 | `tdarr-transcoding` | Tdarr libraries, flows, customFunction nodes, errored remuxes |
 | `databases` | SurrealDB, CloudNativePG, EMQX, Dragonfly |
