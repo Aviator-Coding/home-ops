@@ -1,0 +1,70 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 system \u2022 GPU",
+    "title": "intel-device-plugin-operator",
+    "tagline": "Runs Intel's device plugin operator and its GPU plugin, which advertise each node's integrated Xe GPU as gpu.intel.com/xe.",
+    "chips": [
+      "GPU.INTEL.COM/XE",
+      "IGPU ONLY \u2022 0XA7A0",
+      "99 SHARES PER NODE",
+      "2 RELEASES"
+    ],
+    "icon": "gauge",
+    "status": "RECONCILED BY FLUX \u2022 system/intel-device-plugin-operator"
+  },
+  "art": {
+    "about": "an operator that turns an integrated GPU into a schedulable resource",
+    "title": "How the Intel GPU plugin is wired",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From an operator install to a shared iGPU on every node",
+    "steps": [
+      {
+        "icon": "package",
+        "title": "Operator",
+        "text": "The intel-device-plugins-operator chart installs the controller and its CRDs. The controller then builds the plugin DaemonSet from a CR.",
+        "scene": "a package box opening into a controller"
+      },
+      {
+        "icon": "filter",
+        "title": "Select",
+        "text": "The GPU release creates GpuDevicePlugin xe with allowIDs 0xa7a0, so only the integrated GPU is advertised.",
+        "scene": "a filter slider set to one chip ID"
+      },
+      {
+        "icon": "share-2",
+        "title": "Share",
+        "text": "sharedDevNum 99 offers 99 shares of gpu.intel.com/xe per node. A pod requests one share.",
+        "scene": "one GPU chip divided into ninety-nine slots"
+      },
+      {
+        "icon": "scan-eye",
+        "title": "Gate",
+        "text": "The GPU Kustomization health-checks the CR through healthCheckExprs: desired and ready DaemonSet counts must match.",
+        "scene": "an eye scanning a row of ready nodes"
+      }
+    ],
+    "facts": [
+      {
+        "value": "99",
+        "label": "shares per node"
+      },
+      {
+        "value": "A7A0",
+        "label": "only iGPU device ID allowed"
+      },
+      {
+        "value": "3",
+        "label": "nodes with an iGPU"
+      },
+      {
+        "value": "2",
+        "label": "flux releases"
+      }
+    ]
+  }
+}
