@@ -9,7 +9,7 @@ metadata:
   name: mcp-tools-embedding
 spec:
   model: BAAI/bge-small-en-v1.5
-  image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest@sha256:b11dcdbf419a2a8a834c454d4ac7fad4647378b016221f1f652cc15717a5b095
+  image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest@sha256:fc09c0862101bd9b069527ae1be91d39833302003c4b15bc3f14fa25e059e8b5
   env:
     - name: HOSTNAME
       value: "::"
