@@ -87,7 +87,7 @@ flowchart LR
 In more detail:
 
 1. Flux applies the `surrealdb` Kustomization after `external-secrets`, and waits for the Deployment to be fully
-   available. The chart renders the Deployment, Service, PVC and ServiceMonitor from the HelmRelease.
+   available. The chart renders the Deployment, Service and PVC from the HelmRelease.
 2. The pod reads the root credentials from `surrealdb-secret` and serves `rocksdb:///data/surrealdb`
    with `--allow-all --allow-funcs` and `unauthenticated: false`. `fsGroup: 65532` makes the Ceph mount writable for
    the image's UID.
@@ -115,7 +115,6 @@ All values are in [`app/helmrelease.yaml`](app/helmrelease.yaml) unless noted. T
 | `resources.requests` | `100m` CPU, `512Mi` memory | The CPU request is the baseline the alerts divide by. It was sized from a 14-day series at `[14d:30s]`, because coarser sampling under-reads the peak. |
 | `resources.limits` | `memory: 2Gi` | No CPU limit, so CPU alerts use the request. |
 | `affinity.podAntiAffinity` | preferred, weight 100, by hostname | Prefers another node on a rollout. It does not add a replica. |
-| `topologySpreadConstraints` | `ScheduleAnyway`, `nodeTaintsPolicy: Honor` | `Honor` makes the spread count only the taints the filter honours (`NoSchedule`, `NoExecute`). It does not count the `PreferNoSchedule` taint on `talos-3`; the TaintToleration score keeps the pod off that node. Skill `node-scheduling`. |
 | `livenessProbe`, `readinessProbe` | `GET /health` on 8000 | Whether `/health` returns non-200 on an unhealthy server is unverified. The root path is not used. |
 | `persistence` `storageClassName` | unset | Not a default; a deliberate omission. |
 | Snapshot hook timeouts (`surrealdb-kopiur` overlay) | `2m` each | A slow export fails the snapshot instead of hanging the backup window. |
@@ -145,7 +144,11 @@ Engine notes, the replica rule and the chart traps are in skill `databases`, ref
 
 ## Known gaps
 
-- **The ServiceMonitor may scrape nothing useful.** `serviceMonitor.enabled: true` makes the chart render a ServiceMonitor. Git sets no metrics path. The only evidence of a problem is the comment in [`prometheusrule.yaml`](app/prometheusrule.yaml) (lines 34-38), which says `/metrics` returns 404 on port 8000. That makes the target likely unhealthy. This is unverified against the live target.
+- **Two value blocks are inert.** `task flux:test:all` warns that the chart does not use `serviceMonitor` or
+  `topologySpreadConstraints`, so neither a ServiceMonitor nor a spread constraint renders. Scheduling rests on the
+  preferred anti-affinity and the talos-3 taint score (skill `node-scheduling`). The comment in
+  [`prometheusrule.yaml`](app/prometheusrule.yaml) (lines 34-38) also says `/metrics` returns 404 on port 8000, so
+  the alerts use kubelet and kube-state-metrics series, not SurrealDB's own.
 - **The chart comments may be stale.** `helmrelease.yaml` and skill `databases` say chart 0.4.0 renders
   `storageClassName` twice, but the pinned chart is 0.5.0. The duplicate-key behaviour was not re-checked after the
   bump, so the `storageClassName` omission rests on an old observation.
