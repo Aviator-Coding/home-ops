@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 GRAFANA",
+    "title": "gpu-node-dashboard",
+    "tagline": "A Grafana dashboard for the Arc B70 on talos-3: VRAM, power, device slots and chat throughput on one screen.",
+    "chips": [
+      "21 PANELS",
+      "5 SECTIONS",
+      "AI/ML FOLDER",
+      "HWMON + LLAMA.CPP"
+    ],
+    "icon": "activity",
+    "status": "RECONCILED BY FLUX \u2022 ai/gpu-node-dashboard"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One JSON file, five sections, no runtime",
+    "steps": [
+      {
+        "icon": "file-json",
+        "title": "Provision",
+        "text": "A ConfigMap named gpu-node-dashboard is generated from gpu-node.json and labelled grafana_dashboard. The Grafana sidecar loads it into the AI/ML folder.",
+        "scene": "a dashboard card sliding into a folder"
+      },
+      {
+        "icon": "memory-stick",
+        "title": "VRAM",
+        "text": "Used and total VRAM for PCI 0000:03:00.0 from the xe driver metrics, plus the VRAM each pod holds.",
+        "scene": "a memory module with a fill gauge"
+      },
+      {
+        "icon": "thermometer",
+        "title": "Power",
+        "text": "Power draw, temperature and fan speed from the talos-3 hwmon sensors, beside the static power limits.",
+        "scene": "a heat sensor over a glowing chip"
+      },
+      {
+        "icon": "ticket",
+        "title": "Allocation",
+        "text": "Allocatable and requested slots for devic.es/b70 and gpu.intel.com/xe, and the pods holding a device.",
+        "scene": "tickets handed out from a counter"
+      },
+      {
+        "icon": "gauge",
+        "title": "Throughput",
+        "text": "Decode and prefill tokens per second for each llama.cpp model and KV type, slots busy and queued, and draft acceptance.",
+        "scene": "a speed dial over a token stream"
+      }
+    ],
+    "facts": [
+      {
+        "value": "21",
+        "label": "panels"
+      },
+      {
+        "value": "2",
+        "label": "device resources"
+      },
+      {
+        "value": "AI/ML",
+        "label": "grafana folder"
+      },
+      {
+        "value": "talos-3",
+        "label": "host sensors"
+      }
+    ]
+  },
+  "art": {
+    "about": "a Grafana dashboard for GPU telemetry",
+    "title": "gpu-node-dashboard",
+    "model": "gpt",
+    "subject": ""
+  }
+}
