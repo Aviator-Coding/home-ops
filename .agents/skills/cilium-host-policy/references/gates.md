@@ -12,7 +12,7 @@ kubectl --kubeconfig="$KUBECONFIG" -n kube-system logs -l k8s-app=cilium --tail=
   | grep -iE 'error|failed|too large|verifier' || echo "no agent errors"
 ```
 
-All three agents Ready. `BPF program is too large` or a verifier error here is the `bpf_host` size failure. The chart tag is in `ocirepository.yaml` (1.18.6 at last read). The upstream report's affected range was `>= 1.17.2, < 1.18.0`; this cluster's feature mix is still broad (netkit, BBR, DSR, maglev, XDP best-effort, BIG TCP). `maxUnavailable: 1` is why a bad program takes one node at a time. Re-read the tag before citing it.
+All three agents Ready. `BPF program is too large` or a verifier error here is the `bpf_host` size failure. The chart tag is in `ocirepository.yaml` (1.20.4 at last read). The upstream report's affected range was `>= 1.17.2, < 1.18.0`; this cluster's feature mix is still broad (netkit without `bpf.tproxy`, which Cilium >= 1.19 rejects with netkit; BBR, DSR, maglev, XDP best-effort, BIG TCP). `maxUnavailable: 1` is why a bad program takes one node at a time. Re-read the tag before citing it.
 
 ## Switches
 
@@ -29,7 +29,7 @@ On each cilium pod, resolve the host endpoint (identity labels contain `reserved
 
 Both must hold on all three nodes:
 
-1. **Deny rows exist** for the Ceph ports in the policy (`fromEntities: world` expands to `reserved:world`, `world-ipv4`, and `world-ipv6`). No Deny rows means the selector matched nothing. The CCNP status still says Valid. `policy-enabled` on the host endpoint is `none`.
+1. **Deny rows exist** for the Ceph ports in the policy (`fromEntities: world` expands to `reserved:world`, `world-ipv4`, and `world-ipv6`; Cilium 1.20 adds `reserved:aggregate-world`, so each port appears four times, 60 rows here). 1.20 also lists `Allow Ingress reserved:aggregate-*` rows; the gate row is still `Allow Ingress ANY ANY`. No Deny rows means the selector matched nothing. The CCNP status still says Valid. `policy-enabled` on the host endpoint is `none`.
 2. **`Allow Ingress ANY` is still there.** Its absence means `enableDefaultDeny` took effect. Roll back.
 
 ```bash
