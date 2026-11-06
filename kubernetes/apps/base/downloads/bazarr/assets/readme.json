@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 BAZARR",
+    "title": "bazarr",
+    "tagline": "Fetches subtitles for the Plex library and saves them beside the media, as UID 2000 on a read-only root filesystem.",
+    "chips": [
+      "UID 2000",
+      "READ-ONLY ROOT",
+      "KOPIUR BACKUP",
+      "INTERNAL ONLY"
+    ],
+    "icon": "languages",
+    "status": "RECONCILED BY FLUX \u2022 downloads/bazarr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A read-only subtitle pipeline over NFS",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Token",
+        "text": "ExternalSecret bazarr-secret copies PLEX_TOKEN from the 1Password item plex. An empty token still reports synced, so the decoded length is the real check.",
+        "scene": "a key being copied from one vault drawer to another"
+      },
+      {
+        "icon": "lock-keyhole",
+        "title": "Start",
+        "text": "A busybox init container chowns /run and /tmp. The linuxserver image then runs as UID 2000 with a read-only root filesystem and two emptyDir mounts.",
+        "scene": "a padlocked server rack with one writable scratch tray"
+      },
+      {
+        "icon": "folder-open",
+        "title": "Media",
+        "text": "Bazarr reads the Plex library over NFS at /data/nas-media and the shared downloads at /data/downloads.",
+        "scene": "a library shelf of film reels linked by a cyan data path"
+      },
+      {
+        "icon": "languages",
+        "title": "Subtitles",
+        "text": "It searches subtitle providers through its own settings and writes the matching files beside each media file.",
+        "scene": "a subtitle strip being printed next to a film reel"
+      },
+      {
+        "icon": "archive",
+        "title": "Keep",
+        "text": "The 5Gi bazarr-config claim, which holds the SQLite database and settings, is backed up by kopiur to Ceph and to R2.",
+        "scene": "a settings cube sealed into an archive box"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2000",
+        "label": "runtime UID and GID"
+      },
+      {
+        "value": "5 GI",
+        "label": "config claim, kopiur"
+      },
+      {
+        "value": "15 M",
+        "label": "first-boot startup budget"
+      },
+      {
+        "value": "6767",
+        "label": "HTTP port"
+      }
+    ]
+  },
+  "art": {
+    "about": "a subtitle service that reads a media library over NFS and writes files beside the media",
+    "title": "How Bazarr fetches subtitles",
+    "model": "gpt",
+    "subject": ""
+  }
+}
