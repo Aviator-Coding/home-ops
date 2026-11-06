@@ -21,6 +21,9 @@ spec:
       kromgo:
         replicas: 2
         strategy: RollingUpdate
+        # One of the two badge replicas stays up through a node drain.
+        podDisruptionBudget:
+          minAvailable: 1
         annotations:
           reloader.stakater.com/auto: "true"
         containers:
@@ -63,6 +66,15 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+      # maxSkew 1 so one drain cannot take both replicas. Honor does not see the talos-3 PreferNoSchedule taint.
+      # The chart defaults labelSelector to this controller's pods. See skill node-scheduling.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          matchLabelKeys:
+            - pod-template-hash
     service:
       app:
         ports:

@@ -25,6 +25,20 @@ spec:
         memory: 64Mi
       limits:
         memory: 128Mi
+    # maxSkew 1 so one drain cannot take both replicas. Honor does not see the talos-3 PreferNoSchedule taint.
+    # See skill node-scheduling.
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        nodeTaintsPolicy: Honor
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: cert-manager
+            app.kubernetes.io/instance: cert-manager
+            app.kubernetes.io/component: controller
+        matchLabelKeys:
+          - pod-template-hash
     webhook:
       replicaCount: 2
       podDisruptionBudget:
@@ -35,6 +49,20 @@ spec:
           memory: 32Mi
         limits:
           memory: 64Mi
+      # maxSkew 1 so one drain cannot take both replicas. Honor does not see the talos-3 PreferNoSchedule taint.
+      # See skill node-scheduling.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: webhook
+              app.kubernetes.io/instance: cert-manager
+              app.kubernetes.io/component: webhook
+          matchLabelKeys:
+            - pod-template-hash
     cainjector:
       replicaCount: 2
       resources:
@@ -43,3 +71,17 @@ spec:
           memory: 128Mi
         limits:
           memory: 256Mi
+      # maxSkew 1 so one drain cannot take both replicas. Honor does not see the talos-3 PreferNoSchedule taint.
+      # See skill node-scheduling.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: cainjector
+              app.kubernetes.io/instance: cert-manager
+              app.kubernetes.io/component: cainjector
+          matchLabelKeys:
+            - pod-template-hash
