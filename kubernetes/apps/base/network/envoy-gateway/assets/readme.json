@@ -1,0 +1,66 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 NETWORK \u2022 GATEWAY API",
+    "title": "envoy-gateway",
+    "tagline": "Runs the Envoy Gateway controller and the two Envoy fleets, envoy-external and envoy-internal, that serve every HTTPRoute in the cluster.",
+    "chips": [
+      "GATEWAY API",
+      "2 GATEWAYS",
+      "2 REPLICAS EACH",
+      "HTTP/3"
+    ],
+    "icon": "waypoints",
+    "status": "RECONCILED BY FLUX \u2022 network/envoy-gateway"
+  },
+  "art": {
+    "about": "one controller pushing config to two gateway fleets",
+    "title": "How envoy-gateway serves every route",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One controller, two front doors, every route",
+    "steps": [
+      {
+        "icon": "layers",
+        "title": "Class",
+        "text": "GatewayClass envoy points at the EnvoyProxy envoy, which runs the proxies in the network namespace.",
+        "scene": "a stack of glass layers"
+      },
+      {
+        "icon": "network",
+        "title": "Gateway",
+        "text": "envoy-external and envoy-internal each open a plain HTTP listener for the redirect and an HTTPS listener on the wildcard Secret.",
+        "scene": "two gateway arches side by side"
+      },
+      {
+        "icon": "route",
+        "title": "Route",
+        "text": "HTTPRoutes from any namespace attach to the HTTPS listeners. The HTTP listeners take only the same-namespace redirect.",
+        "scene": "routes branching into arches"
+      },
+      {
+        "icon": "zap",
+        "title": "Proxy",
+        "text": "The controller pushes config to each Envoy pod over xDS. On shutdown a pod drains for up to 180 seconds before it exits.",
+        "scene": "a stream of light entering a proxy box"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2 \u00d7 2",
+        "label": "Gateways \u00d7 replicas each"
+      },
+      {
+        "value": "360 S",
+        "label": "pod termination grace period"
+      },
+      {
+        "value": "HTTP/3",
+        "label": "on both Gateways, with HTTP/2 and 1.1"
+      }
+    ]
+  }
+}
