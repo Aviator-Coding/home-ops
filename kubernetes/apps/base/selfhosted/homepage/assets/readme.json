@@ -1,0 +1,63 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 DASHBOARD",
+    "title": "homepage",
+    "tagline": "Serves the internal start page: services from YAML, cluster state from the Kubernetes API, and widgets fed by 1Password.",
+    "chips": [
+      "KUBERNETES WIDGETS",
+      "READ-ONLY RBAC",
+      "1PASSWORD ENV",
+      "INTERNAL ONLY"
+    ],
+    "icon": "layout-dashboard",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/homepage"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Config in Git, state from the API",
+    "steps": [
+      {
+        "icon": "file-text",
+        "title": "Config",
+        "text": "ConfigMap homepage-config mounts six YAML files at /app/config: bookmarks, services, settings, widgets, docker and kubernetes.",
+        "scene": "a stack of config sheets"
+      },
+      {
+        "icon": "key-round",
+        "title": "Secrets",
+        "text": "ExternalSecret homepage-secret pulls the unifi, nas and grafana items from 1Password into the pod environment.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "list-checks",
+        "title": "Discover",
+        "text": "ClusterRole homepage lets the pod read namespaces, pods, nodes, HTTPRoutes and metrics. Route annotations add the tiles.",
+        "scene": "a grid of service tiles with a radar sweep"
+      },
+      {
+        "icon": "layout-dashboard",
+        "title": "Render",
+        "text": "The app serves the dashboard on port 3000 through the envoy-internal HTTPRoute, with the ServiceAccount token mounted for the cluster widgets.",
+        "scene": "a browser window of dashboard tiles"
+      }
+    ],
+    "facts": [
+      {
+        "value": "6",
+        "label": "config files in one ConfigMap"
+      },
+      {
+        "value": "3",
+        "label": "1Password items feed the env"
+      },
+      {
+        "value": "1",
+        "label": "ClusterRole, read only"
+      },
+      {
+        "value": "256 MI",
+        "label": "memory limit"
+      }
+    ]
+  }
+}
