@@ -1,0 +1,60 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 NETWORK \u2022 BROWSER",
+    "title": "flaresolverr",
+    "tagline": "Runs a headless browser that solves Cloudflare challenges for other apps, reachable only inside the cluster.",
+    "chips": [
+      "CLUSTER-INTERNAL",
+      "2 REPLICAS",
+      "PORT 8191",
+      "NO CAPTCHA SOLVER"
+    ],
+    "icon": "bot",
+    "status": "RECONCILED BY FLUX \u2022 network/flaresolverr"
+  },
+  "art": {
+    "about": "a headless browser clearing a challenge page and returning cookies",
+    "title": "How FlareSolverr clears a challenge",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A browser that hands back cookies",
+    "steps": [
+      {
+        "icon": "send",
+        "title": "Request",
+        "text": "A caller such as shelfmark posts a request for a protected URL to the flaresolverr Service on port 8191.",
+        "scene": "a paper request sliding into a door"
+      },
+      {
+        "icon": "chrome",
+        "title": "Solve",
+        "text": "FlareSolverr drives a headless Chromium session through the challenge page. No captcha solver is configured, so captcha pages fail.",
+        "scene": "a browser window with a shield in the corner"
+      },
+      {
+        "icon": "cookie",
+        "title": "Return",
+        "text": "It returns the final HTML and cookies, which the caller reuses for later requests.",
+        "scene": "a cookie handed across a counter"
+      }
+    ],
+    "facts": [
+      {
+        "value": "8191",
+        "label": "port, ClusterIP Service only"
+      },
+      {
+        "value": "1 GI",
+        "label": "memory limit per pod"
+      },
+      {
+        "value": "150 S",
+        "label": "startup budget before probes count"
+      }
+    ]
+  }
+}
