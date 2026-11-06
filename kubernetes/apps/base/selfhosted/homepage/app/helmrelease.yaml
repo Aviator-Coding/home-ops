@@ -26,7 +26,7 @@ spec:
               tag: v2.7.0
             env:
               - name: HOMEPAGE_ALLOWED_HOSTS
-                value: "*"
+                value: homepage.${SECRET_DOMAIN}
               - name: TZ
                 value: ${CONFIG_TIMEZONE}
             ports:
@@ -36,6 +36,13 @@ spec:
             envFrom:
               - secretRef:
                   name: *secret
+            securityContext:
+              allowPrivilegeEscalation: false
+              # Next.js writes its cache under the root filesystem.
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - ALL
             resources:
               requests:
                 cpu: 10m
@@ -50,6 +57,10 @@ spec:
                   httpGet:
                     port: 3000
                     path: /api/healthcheck
+                    # Must match HOMEPAGE_ALLOWED_HOSTS or the probes are rejected.
+                    httpHeaders:
+                      - name: Host
+                        value: homepage.${SECRET_DOMAIN}
                   initialDelaySeconds: 0
               readiness: *probes
               startup: *probes
