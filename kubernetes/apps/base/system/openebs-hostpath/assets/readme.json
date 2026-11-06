@@ -1,0 +1,70 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 system \u2022 STORAGE",
+    "title": "openebs-hostpath",
+    "tagline": "Provides the openebs-hostpath StorageClass: node-local volumes, each a directory on one node's disk, for claims that need no replicas.",
+    "chips": [
+      "LOCALPV \u2022 HOSTPATH",
+      "NOT THE DEFAULT",
+      "NO REPLICAS",
+      "OCI \u2022 HELM"
+    ],
+    "icon": "hard-drive",
+    "status": "RECONCILED BY FLUX \u2022 system/openebs-hostpath"
+  },
+  "art": {
+    "about": "a node-local storage class that serves directories from one node's disk",
+    "title": "How openebs-hostpath serves a volume",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A node-local volume, tied to the node that holds it",
+    "steps": [
+      {
+        "icon": "package",
+        "title": "Chart",
+        "text": "An OCIRepository pulls the openebs chart. The HelmRelease keeps only the hostpath LocalPV provisioner and turns off the ZFS, LVM, Mayastor, MinIO and logging subcharts.",
+        "scene": "a package box with one drawer open"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Class",
+        "text": "The chart creates StorageClass openebs-hostpath. It is not the default class, so a claim has to name it.",
+        "scene": "a labelled storage bin on a shelf"
+      },
+      {
+        "icon": "folder-tree",
+        "title": "Bind",
+        "text": "A volume is a directory under /var/openebs/local on one node. It cannot follow a pod to another node.",
+        "scene": "a directory tree rooted in a single disk"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Stay",
+        "text": "Nothing is replicated. CNPG cluster-18 and the Ceph metadata backup PVC use this class, and a host wipe destroys its volumes, so each depends on its own backup path.",
+        "scene": "a locked vault bolted to one machine"
+      }
+    ],
+    "facts": [
+      {
+        "value": "0",
+        "label": "replicas, node-local only"
+      },
+      {
+        "value": "NO",
+        "label": "default storage class"
+      },
+      {
+        "value": "LOCAL",
+        "label": "a directory on the node"
+      },
+      {
+        "value": "1",
+        "label": "StorageClass the chart creates"
+      }
+    ]
+  }
+}
