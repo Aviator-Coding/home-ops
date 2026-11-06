@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 TV",
+    "title": "sonarr",
+    "tagline": "Tracks wanted TV series, grabs Usenet releases through Prowlarr and SABnzbd, and imports the episodes into the NAS library.",
+    "chips": [
+      "USENET ONLY",
+      "POSTGRES ON CNPG",
+      "KOPIUR \u2022 CEPH + R2",
+      "SPREAD ACROSS NODES"
+    ],
+    "icon": "tv",
+    "status": "RECONCILED BY FLUX \u2022 downloads/sonarr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a wanted episode to a file in the library",
+    "steps": [
+      {
+        "icon": "database",
+        "title": "State",
+        "text": "The init-db container makes sure the sonarr database and role exist on shared postgres-18-rw. Settings live in the sonarr-config claim.",
+        "scene": "a stack of database cylinders with a small key"
+      },
+      {
+        "icon": "search",
+        "title": "Search",
+        "text": "Sonarr asks the indexers that Prowlarr provides for each wanted episode, then ranks the releases by the Recyclarr scores.",
+        "scene": "a magnifying glass over a row of episode cards"
+      },
+      {
+        "icon": "download",
+        "title": "Grab",
+        "text": "The chosen NZB goes to SABnzbd, which downloads and repairs it on shared-downloads.",
+        "scene": "a download arrow dropping a folder into a tray"
+      },
+      {
+        "icon": "copy",
+        "title": "Import",
+        "text": "Sonarr copies the finished episode from /data/downloads into /data/nas-media. Every import is a copy, because CephFS and NFS cannot hardlink.",
+        "scene": "an episode file being copied onto a library shelf"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Back up",
+        "text": "kopiur snapshots sonarr-config to Ceph every four hours and to R2 at 11:00 New York time, daily.",
+        "scene": "a shield over a cube and a cloud"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2 GB",
+        "label": "memory limit"
+      },
+      {
+        "value": "384 MB",
+        "label": "memory request"
+      },
+      {
+        "value": "11:00",
+        "label": "daily R2 snapshot, NY time"
+      },
+      {
+        "value": "2000",
+        "label": "UID and GID the pod runs as"
+      }
+    ]
+  },
+  "art": {
+    "about": "how a TV episode request is searched, grabbed and imported by Sonarr",
+    "title": "How Sonarr grabs and imports an episode",
+    "model": "gpt",
+    "subject": ""
+  }
+}
