@@ -15,7 +15,24 @@ spec:
       # Match the retired CronJob: one attempt per run, the next hourly run is the retry.
       defaultJobBackoffLimit: 0
       jobTTLSecondsAfterFinished: 86400
-    # No auth provider configured, so every UI visitor is admin. Internal route only.
+    # Authentik OIDC (terraform/authentik/renovate-operator.tofu). authorization off: any
+    # Authentik user who logs in is admin, as on the other household apps.
+    auth:
+      oidc:
+        enabled: true
+        issuerUrl: "https://auth.${SECRET_DOMAIN}/application/o/renovate-operator/"
+        clientId: renovate-operator
+        existingSecret: renovate-operator-oidc
+        secretKey: client-secret
+        sessionSecretKey: session-secret
+        # TLS ends at envoy-internal; the auto-detected redirect would be http.
+        redirectScheme: https
+    authorization:
+      enabled: false
+    deployment:
+      annotations:
+        secret.reloader.stakater.com/reload: renovate-operator-oidc
+    # Internal route only.
     route:
       enabled: true
       annotations:

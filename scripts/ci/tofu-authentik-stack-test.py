@@ -132,6 +132,10 @@ CREATED_RESOURCE_ADDRS = frozenset(
         "random_password.litellm_client_secret",
         "authentik_provider_oauth2.home_assistant",
         "authentik_application.home_assistant",
+        "authentik_provider_oauth2.renovate_operator",
+        "authentik_application.renovate_operator",
+        "random_password.renovate_operator_client_secret",
+        "random_password.renovate_operator_session_secret",
     }
 )
 
@@ -520,6 +524,15 @@ def test_stack_hcl_model() -> dict[str, Any]:
                     raise Failure(
                         f"litellm redirect URI must target litellm host: {uris!r}"
                     )
+            continue
+        if name == "renovate_operator":
+            # Created confidential client: generated secret, literal client_id, explicit grants.
+            if "client_secret" not in block:
+                raise Failure("renovate_operator provider must declare generated client_secret")
+            if "grant_types" not in block:
+                raise Failure("created renovate_operator provider must declare grant_types")
+            if "/auth/callback" not in json.dumps(block.get("allowed_redirect_uris") or []):
+                raise Failure("renovate_operator redirect URI must end with /auth/callback")
             continue
         if name == "home_assistant":
             # Created public client (PKCE): no secret, grant_types explicit.

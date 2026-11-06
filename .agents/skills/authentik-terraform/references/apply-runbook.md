@@ -66,6 +66,21 @@ Then confirm ExtAuth still redirects and the server pod is Ready.
 LiteLLM provider, application, scope mapping and invalidation flow. There is
 no live-cluster case for it.
 
+## Copy the generated renovate-operator secrets to 1Password
+
+After the apply that creates (or rotates) the renovate-operator provider:
+
+```bash
+CSEC=$(tofu -chdir=terraform/authentik output -raw renovate_operator_client_secret)
+SSEC=$(tofu -chdir=terraform/authentik output -raw renovate_operator_session_secret)
+op item create --vault Homelab --category login --title renovate-operator-oidc \
+  "client-secret[password]=$CSEC" "session-secret[password]=$SSEC"
+```
+
+On rotation use `op item edit` instead. The ExternalSecret refreshes hourly and
+reloader restarts the operator. The item must exist before the HelmRelease
+enables `auth.oidc`, or the pod cannot start (`secretKeyRef`).
+
 ## Push a generated LiteLLM client to the cluster
 
 OpenTofu cannot write Kubernetes. After an apply that rotates the LiteLLM
