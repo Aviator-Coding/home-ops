@@ -1,0 +1,66 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 NETWORK \u2022 DNS",
+    "title": "unifi-dns",
+    "tagline": "Writes internal hostnames into the UniFi gateway's DNS, so LAN clients resolve them to the internal Gateway.",
+    "chips": [
+      "UNIFI WEBHOOK",
+      "SPLIT DNS",
+      "POLICY SYNC",
+      "OWNER MAIN"
+    ],
+    "icon": "house",
+    "status": "RECONCILED BY FLUX \u2022 network/unifi-dns"
+  },
+  "art": {
+    "about": "internal DNS records written into a router from cluster objects",
+    "title": "How unifi-dns writes LAN records",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "LAN names from Gateway and Service objects",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Key",
+        "text": "ExternalSecret unifi-dns maps the UniFi API key and host from 1Password item unifi into Secret unifi-dns-secret for the webhook.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "scan-eye",
+        "title": "Watch",
+        "text": "external-dns reads HTTPRoutes and Services and takes each record target from the parent Gateway's annotation.",
+        "scene": "a magnifier over a route map"
+      },
+      {
+        "icon": "plug",
+        "title": "Write",
+        "text": "The webhook container writes records to the UniFi controller, each paired with a TXT record that names the owner main.",
+        "scene": "a router with a cable into a list of records"
+      },
+      {
+        "icon": "list-checks",
+        "title": "Prune",
+        "text": "Owned records with no source are removed. A record without its TXT twin is hand-made, and it stays.",
+        "scene": "a list with one line struck through"
+      }
+    ],
+    "facts": [
+      {
+        "value": "main",
+        "label": "txtOwnerId, one owner per zone"
+      },
+      {
+        "value": "SYNC",
+        "label": "policy, removes only owned records"
+      },
+      {
+        "value": "128 MI",
+        "label": "webhook memory limit"
+      }
+    ]
+  }
+}
