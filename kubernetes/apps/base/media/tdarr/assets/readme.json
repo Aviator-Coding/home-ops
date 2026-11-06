@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MEDIA \u2022 TRANSCODING",
+    "title": "tdarr",
+    "tagline": "Runs the Tdarr server and a GPU worker that transcodes the NAS library on an Intel B70 over VA-API.",
+    "chips": [
+      "INTEL B70 \u2022 VA-API",
+      "2 GPU JOBS",
+      "LAN NODE PORT 8266",
+      "KOPIUR \u2022 R2"
+    ],
+    "icon": "film",
+    "status": "RECONCILED BY FLUX \u2022 media/tdarr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Server coordinates, one GPU worker transcodes",
+    "steps": [
+      {
+        "icon": "server",
+        "title": "Server",
+        "text": "The Tdarr server serves the web UI on 8265 and runs the flows. Its database and flow state sit on the tdarr-config claim.",
+        "scene": "a server rack with a glowing control panel"
+      },
+      {
+        "icon": "cpu",
+        "title": "Worker",
+        "text": "One tdarr-node pod requests devic.es/b70-vaapi, the card on talos-3, and runs two GPU transcode jobs and one CPU job.",
+        "scene": "a graphics card with two glowing transcode lanes"
+      },
+      {
+        "icon": "film",
+        "title": "Transcode",
+        "text": "Workers read the NAS media share and write intermediates to the tdarr-temp RWX claim, so large files stay off the node disk.",
+        "scene": "a film reel feeding a conveyor of glowing frames"
+      },
+      {
+        "icon": "plug",
+        "title": "Remote",
+        "text": "tdarr-node-lb exposes port 8266 on the LAN, so a GPU node outside the cluster joins the same server.",
+        "scene": "a remote workstation linked to a server by a bright cable"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Keep",
+        "text": "kopiur snapshots the tdarr-config claim to R2 each day. The temp claim is scratch and is not backed up.",
+        "scene": "snapshot cards flowing into a cloud bucket"
+      }
+    ],
+    "facts": [
+      {
+        "value": "B70",
+        "label": "Intel Arc card for VA-API"
+      },
+      {
+        "value": "2",
+        "label": "GPU jobs at a time"
+      },
+      {
+        "value": "200 GI",
+        "label": "RWX scratch claim"
+      },
+      {
+        "value": "8266",
+        "label": "node port on the LAN"
+      }
+    ]
+  },
+  "art": {
+    "about": "how a media file moves through a Tdarr server and a GPU worker",
+    "title": "How Tdarr transcodes the library",
+    "model": "gpt",
+    "subject": ""
+  }
+}
