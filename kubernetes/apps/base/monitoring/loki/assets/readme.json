@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 LOGS \u2022 LOKI",
+    "title": "loki",
+    "tagline": "Keeps every container log for 14 days on one Ceph volume and answers the LogQL queries Grafana sends it.",
+    "chips": [
+      "SINGLE BINARY",
+      "14 D RETENTION",
+      "FILESYSTEM \u2022 50 GI",
+      "NO OBJECT STORE"
+    ],
+    "icon": "scroll-text",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/loki"
+  },
+  "art": {
+    "about": "how a log line travels from a pod into Loki and back out to a query",
+    "title": "How Loki stores and serves logs",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a log line to a LogQL answer",
+    "steps": [
+      {
+        "icon": "inbox",
+        "title": "Receive",
+        "text": "Promtail pushes batches to loki-headless on port 3100. The NetworkPolicy admits only monitoring, rook-ceph and DNS replies.",
+        "scene": "log lines arriving through a funnel"
+      },
+      {
+        "icon": "layers",
+        "title": "Chunk",
+        "text": "The ingester holds streams in memory and a WAL under /var/loki/wal, then cuts chunks of snappy-compressed blocks, 256 KiB each.",
+        "scene": "stacked log chunks forming a small tower"
+      },
+      {
+        "icon": "database",
+        "title": "Store",
+        "text": "Chunks and the TSDB index, schema v13, live on a 50 GiB ceph-block volume. With no object store, that volume is the whole data set.",
+        "scene": "a storage cylinder beside an index card"
+      },
+      {
+        "icon": "timer",
+        "title": "Expire",
+        "text": "The compactor deletes streams past 14 days. Ingest is capped at 10 MB/s with a 20 MB burst.",
+        "scene": "an hourglass over a stack of expired log pages"
+      },
+      {
+        "icon": "search",
+        "title": "Query",
+        "text": "Grafana's Loki datasource sends LogQL to port 3100. Loki's own request metrics feed three alerts.",
+        "scene": "a magnifying glass over log lines"
+      }
+    ],
+    "facts": [
+      {
+        "value": "14 D",
+        "label": "log retention"
+      },
+      {
+        "value": "10 MB",
+        "label": "ingest rate per second"
+      },
+      {
+        "value": "50 GI",
+        "label": "ceph-block volume"
+      },
+      {
+        "value": "1",
+        "label": "replica, single binary"
+      }
+    ]
+  }
+}
