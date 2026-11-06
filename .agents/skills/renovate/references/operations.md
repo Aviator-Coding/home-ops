@@ -30,7 +30,9 @@ chart's policy engine requires once enabled.
 
 ## Run now
 
-- UI: `renovate.${SECRET_DOMAIN}` (internal only, no auth: every visitor is admin).
+- UI: `renovate.${SECRET_DOMAIN}` (internal only, Authentik OIDC; `authorization` off, so
+  every Authentik user is admin). Client: `terraform/authentik/renovate-operator.tofu`;
+  secrets `Homelab/renovate-operator-oidc` (`client-secret`, `session-secret`).
 - CLI: `kubectl -n renovate annotate renovatejob home-ops renovate-operator.mogenius.com/schedule-all=true`
   (admin kubeconfig). The operator picks it up within a minute.
 

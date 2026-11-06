@@ -10,6 +10,10 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  # The OIDC client secret is an ExternalSecret.
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
   # The Deployment, not the HelmRelease: an HR check stays Ready through a crashloop.
   healthChecks:
     - apiVersion: apps/v1
