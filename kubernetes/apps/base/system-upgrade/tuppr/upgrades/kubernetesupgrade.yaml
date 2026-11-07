@@ -23,3 +23,13 @@ spec:
       kind: CephCluster
       expr: |-
         status.ceph.health in ['HEALTH_OK']
+    # Data stores back to full strength before the next node. tuppr binds only `object` and
+    # `status` in CEL, so spec fields go through object.spec (a bare `spec` fails to compile).
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      expr: |-
+        has(status.readyInstances) && status.readyInstances == object.spec.instances
+    - apiVersion: dragonflydb.io/v1alpha1
+      kind: Dragonfly
+      expr: |-
+        has(status.phase) && status.phase == "Ready"

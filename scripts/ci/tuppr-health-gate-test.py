@@ -13,8 +13,14 @@ guard the field with has() and name only a phase that means "mover running".
 No check may name a `volsync.backube` kind: issue #2202 PR-6 removed the operator,
 and its CRDs are deleted by hand after that merge. A check on a kind with no CRD
 retries until the timeout and blocks every Talos and Kubernetes upgrade.
+
+tuppr's CEL env declares only `object` and `status`. A bare `spec.` reference
+fails to compile and blocks every upgrade, so spec fields go through
+`object.spec`. The CNPG Cluster and Dragonfly checks hold the roll until each
+data store is back to full strength.
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -28,6 +34,11 @@ EXPECTED = {
     "Snapshot": '!has(status.phase) || status.phase != "Running"',
     "Restore": '!has(status.phase) || status.phase != "Restoring"',
 }
+DATA_STORES = {
+    ("postgresql.cnpg.io/v1", "Cluster"),
+    ("dragonflydb.io/v1alpha1", "Dragonfly"),
+}
+BARE_SPEC = re.compile(r"(?<![.\w])spec\.")
 
 
 def checks(name):
@@ -54,6 +65,12 @@ def main():
         kinds = [c["kind"] for c in checks(name)]
         if "CephCluster" not in kinds:
             failures.append(f"{name}: CephCluster check missing")
+        present = {(c["apiVersion"], c["kind"]) for c in checks(name)}
+        for api, kind in sorted(DATA_STORES - present):
+            failures.append(f"{name}: {api} {kind} check missing")
+        for c in checks(name):
+            if BARE_SPEC.search(c["expr"]):
+                failures.append(f"{name}: {c['kind']} expr uses a bare `spec.`; tuppr binds only `object` and `status`")
     for f in failures:
         print("FAIL", f)
     print("tuppr-health-gate-test:", "FAILED" if failures else "ok")

@@ -41,3 +41,8 @@ spec:
         memory: 128Mi
       limits:
         memory: 256Mi
+    # Soft Go heap cap below the 256Mi limit so GC runs before the kernel OOM-kills the pod.
+    # Live working set is about 143Mi; an OOM takes the admission webhook (failurePolicy Fail) down.
+    env:
+      - name: GOMEMLIMIT
+        value: 200MiB

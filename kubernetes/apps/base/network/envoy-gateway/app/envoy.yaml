@@ -157,6 +157,13 @@ spec:
     - type: Gzip
   connection:
     bufferLimit: 8Mi
+  # Retry only a reset before any request byte reached the backend (a stale pooled connection
+  # or a pod that just went away), so a POST is never replayed. Needs Envoy Gateway v1.3+.
+  retry:
+    numRetries: 2
+    retryOn:
+      triggers:
+        - reset-before-request
   targetSelectors:
     - group: gateway.networking.k8s.io
       kind: Gateway

@@ -172,6 +172,36 @@
       "group": {
         "commitMessageTopic": "{{{groupName}}} group"
       }
+    },
+    {
+      // Server and node must run the same version; 3.06.00 landed as two PRs.
+      description: "Tdarr Group",
+      groupName: "Tdarr",
+      matchDatasources: [
+        "docker"
+      ],
+      matchPackageNames: [
+        "ghcr.io/haveagitgat/tdarr",
+        "ghcr.io/haveagitgat/tdarr_node"
+      ],
+      group: {
+        commitMessageTopic: "{{{groupName}}} group",
+      },
+    },
+    {
+      // Operator chart and its CRDs chart move together; 0.62.0 landed as #2339 and #2340, 18 minutes apart.
+      description: "ToolHive Operator Group",
+      groupName: "ToolHive Operator",
+      matchDatasources: [
+        "docker"
+      ],
+      matchPackageNames: [
+        "ghcr.io/stacklok/toolhive/toolhive-operator",
+        "ghcr.io/stacklok/toolhive/toolhive-operator-crds"
+      ],
+      group: {
+        commitMessageTopic: "{{{groupName}}} group",
+      },
     }
   ],
 }

@@ -43,3 +43,16 @@ spec:
           memory: 32Mi
         limits:
           memory: 64Mi
+      # maxSkew 1 so one drain cannot take both replicas. Honor does not see the talos-3 PreferNoSchedule taint.
+      # See skill node-scheduling.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: external-secrets-webhook
+              app.kubernetes.io/instance: external-secrets
+          matchLabelKeys:
+            - pod-template-hash
