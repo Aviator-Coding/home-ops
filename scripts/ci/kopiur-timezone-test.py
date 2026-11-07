@@ -56,6 +56,27 @@ KOPIUR_BACKUP_PATH = "kubernetes/components/kopiur/backup"
 VOLSYNC_COMPONENT_SUFFIX = "components/volsync"
 VOLSYNC_BACKUP_PATH = "kubernetes/components/volsync/backup"
 
+
+def is_backup_path(path: str, backup_path: str = KOPIUR_BACKUP_PATH) -> bool:
+    """A Flux `path` that is the backup bundle, or a base kustomization wrapping it.
+
+    A wrapper (kubernetes/apps/base/database/surrealdb/backup) carries per-app
+    patches on the bundle, because cluster-apps replaces an overlay's
+    spec.patches (overlay-patches-test.py).
+    """
+    rel = path.strip().strip("./")
+    if rel == backup_path:
+        return True
+    kfile = REPO / rel / "kustomization.yaml"
+    if not rel or not kfile.is_file():
+        return False
+    doc = yaml.safe_load(kfile.read_text()) or {}
+    target = (REPO / backup_path).resolve()
+    return any(
+        isinstance(r, str) and (kfile.parent / r).resolve() == target
+        for r in doc.get("resources") or []
+    )
+
 # The whole kopiur fleet, dual-engine or retired.
 #
 # Retiring a volume NEVER lowers this: retiring VolSync does not remove the
@@ -209,7 +230,7 @@ def _engine_schedules(
         spec = d.get("spec") or {}
         comps = [c for c in (spec.get("components") or []) if isinstance(c, str)]
         via_component = any(c.rstrip("/").endswith(component_suffix) for c in comps)
-        via_path = str(spec.get("path") or "").strip("./") == backup_path
+        via_path = is_backup_path(str(spec.get("path") or ""), backup_path)
         if not (via_component or via_path):
             continue
         sub = {
