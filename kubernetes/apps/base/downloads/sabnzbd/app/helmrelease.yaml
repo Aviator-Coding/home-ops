@@ -81,6 +81,17 @@ spec:
               - secretRef:
                   name: sabnzbd-secret
             probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api?mode=version
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 30
               # SABnzbd's web API blocks during heavy post-processing (par2
               # verify/repair, unrar/7zip). A 1s timeout tripped the liveness
               # probe and killed a busy-but-healthy process, dropping it from
