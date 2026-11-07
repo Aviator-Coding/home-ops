@@ -35,6 +35,5 @@ patches:
       group: helm.toolkit.fluxcd.io
       kind: HelmRelease
 resources:
-  - ./ciliumnetworkpolicy.yaml
   - ./externalsecret.yaml
   - ./helmrelease.yaml
