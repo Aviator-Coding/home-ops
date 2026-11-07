@@ -29,15 +29,6 @@ spec:
             fsGroup: 2000
             fsGroupChangePolicy: OnRootMismatch
 
-        initContainers:
-          init-db:
-            image:
-              repository: ghcr.io/home-operations/postgres-init
-              tag: 18.6@sha256:87627baaddb0cabed4ebe033e75038e5c7b6b081c18e86514c99067179a90719
-            envFrom: &envFrom
-              - secretRef:
-                  name: seerr-secret
-
         containers:
           app:
             image:
@@ -52,7 +43,9 @@ spec:
                   secretKeyRef:
                     name: seerr-api-key
                     key: SEERR_API_KEY
-            envFrom: *envFrom
+            envFrom:
+              - secretRef:
+                  name: seerr-secret
             probes:
               liveness: &probes
                 enabled: true
