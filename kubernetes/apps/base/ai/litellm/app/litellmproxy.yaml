@@ -9,7 +9,7 @@ metadata:
 spec:
   # `file` keeps Git the source of truth; `api` would turn store_model_in_db on.
   applyMode: file
-  image: ghcr.io/berriai/litellm-non_root:v1.108.1@sha256:bf26c5e4e18375d407fa29c78071293bba6122b886434e454ded05e1d86a8bd6
+  image: ghcr.io/berriai/litellm-non_root:v1.108.2@sha256:c1e177d3c081bcc752b1be423c59d586ed97236d5f8b6b15e649b6d871e11c65
   # ^ Floor v1.93.0 (auto-router LLM classifier; below it the config is silently
   # ignored). Enforced by .renovate/overrides.json5 - references/auto-router.md.
   replicas: 1
