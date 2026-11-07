@@ -7,3 +7,5 @@ resources:
   - ./ocirepository.yaml
   - ./networking.yaml
   - ./hostpolicy-ceph.yaml
+  - ./httproute.yaml
+  - ./securitypolicy.yaml
