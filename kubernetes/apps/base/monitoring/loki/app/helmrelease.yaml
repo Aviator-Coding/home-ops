@@ -48,6 +48,8 @@ spec:
         ingestion_burst_size_mb: 20
         max_streams_per_user: 10000
         max_line_size: 256KB
+        # Truncate an over-long line instead of rejecting the whole push batch.
+        max_line_size_truncate: true
       schemaConfig:
         configs:
           - from: "2024-04-01"
