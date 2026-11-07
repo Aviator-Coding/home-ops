@@ -67,7 +67,16 @@ spec:
                   failureThreshold: 6
               readiness: *probes
               startup:
-                enabled: false
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 60
 
     defaultPodOptions:
       securityContext:

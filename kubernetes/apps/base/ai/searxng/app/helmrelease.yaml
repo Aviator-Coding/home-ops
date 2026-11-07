@@ -38,6 +38,17 @@ spec:
               - secretRef:
                   name: *app
             probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /stats
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 12
               liveness: &probes
                 enabled: true
                 custom: true
