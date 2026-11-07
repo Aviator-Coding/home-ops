@@ -3,7 +3,7 @@
 Tripwires, the single barman destination, and the health gate live in skill
 `databases` (`references/cnpg.md`). The operator chart tag is the
 OCIRepository `ref.tag` in `operator/helmrelease.yaml`, not a version written
-here. The `gatus.io/enabled` ConfigMap in `cluster-17/` is not a live Gatus
+here. The `gatus.io/enabled` ConfigMap in `cluster-18/` is not a live Gatus
 check (skill `observability`).
 
 ## Restore into a fresh cluster
