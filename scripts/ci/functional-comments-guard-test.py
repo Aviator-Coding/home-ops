@@ -117,6 +117,14 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         '# renovate: depName="Radarr v3"',
     ): "Radarr v3 dashboard removed: the exportarr sidecar was removed, so it has no data.",
     (
+        "kubernetes/apps/base/coder/app/helmrelease.yaml",
+        "# renovate: datasource=docker depName=ghcr.io/home-operations/postgres-init",
+    ): "init-db container removed: components/cnpg-database owns the role and database.",
+    (
+        "kubernetes/apps/base/security/authentik/app/helmrelease.yaml",
+        "# renovate: datasource=docker depName=ghcr.io/home-operations/postgres-init",
+    ): "init-db container removed: components/cnpg-database owns the role and database.",
+    (
         "kubernetes/apps/base/downloads/sonarr/app/helmrelease.yaml",
         "# renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr",
     ): "exportarr sidecar removed: the API key is not 20-32 alphanumeric, so it crash-looped.",

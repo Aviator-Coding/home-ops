@@ -856,18 +856,18 @@ def test_externalsecret_no_new_op_item() -> None:
         (REPO / "kubernetes/apps/base/ai/litellm/app/externalsecret.yaml").read_text()
     )
     keys = [d["extract"]["key"] for d in es["spec"]["dataFrom"]]
-    # litellm + cloudnative-pg were pre-existing; ai-keys is the shared existing item.
+    # litellm was pre-existing; ai-keys is the shared existing item. cloudnative-pg left the list
+    # with the postgres-init Job (2026-11-06): the proxy never needs the superuser password.
     # litellm-sso is created and populated by OpenTofu (terraform/authentik/litellm.tofu)
     # via a PushSecret to wire LiteLLM's UI SSO through Authentik, landed deliberately in
     # d159d7f5 (PR #1473). Its value never lands in git. litellm-pgvector (2026-09-27) is
     # the pgvector vector store's bearer key, written by pushsecret-pgvector.yaml from a
     # hand-seeded Secret, same seam as litellm-sso. This allow-list exists to catch an
-    # UNEXPECTED new secret source; a seventh, unrecognised item must still fail this test.
+    # UNEXPECTED new secret source; a sixth, unrecognised item must still fail this test.
     # cliproxyapi (2026-10-30) holds the bearer key LiteLLM sends to the in-cluster cliproxyapi;
     # the captain creates it by hand and the app's own ExternalSecret reads the same item.
     allowed = {
         "litellm",
-        "cloudnative-pg",
         "ai-keys",
         "litellm-sso",
         "litellm-pgvector",

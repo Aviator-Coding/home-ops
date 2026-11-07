@@ -22,7 +22,6 @@ public listener: no `envoy-external` parentRef, ever.
 | `app/httproute-internal.yaml` | `litellm-internal` route + `/anthropic` 404 filter |
 | `app/externalsecret.yaml` | `litellm-secret` |
 | `app/pushsecret-sso.yaml`, `app/pushsecret-pgvector.yaml` | one-time credentials into 1Password |
-| `app/dbinit.yaml` | `postgres-init` Job for the `litellm` role and database |
 | `app/servicemonitor.yaml`, `app/prometheusrule.yaml` | scrape and alerts |
 
 ## Prerequisites (before first sync)
@@ -38,13 +37,12 @@ the only item created by hand:
 | `POSTGRES_DB_USER_NAME` | `litellm` |
 | `POSTGRES_DB_USER_PASSWORD` | `openssl rand -hex 24` |
 
-Already existing and reused: `cloudnative-pg` (`POSTGRES_SUPER_PASS`) and
-`ai-keys` (`ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`,
+Already existing and reused: `ai-keys` (`ANTHROPIC_API_KEY`, `XAI_API_KEY`, `ZAI_API_KEY`,
 `OPENROUTER_API_KEY`, `OPENCODE_GO_API_KEY`). Written by
 PushSecrets, not by hand: `Automation/litellm-sso` (from OpenTofu,
 `.agents/skills/authentik-terraform/references/apply-runbook.md`), `litellm-pgvector` (seed command in
 `app/pushsecret-pgvector.yaml`) and every `litellm-consumer-*` item.
 
 Until `litellm` exists the ExternalSecret reports `SecretSyncedError`, the
-`litellm-db-init` Job cannot start and the proxy sits in
+`litellm-db` role has no password and the proxy sits in
 `CreateContainerConfigError`: an unmet prerequisite, not a manifest bug.

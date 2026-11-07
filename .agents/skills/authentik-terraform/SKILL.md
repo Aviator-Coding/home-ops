@@ -12,7 +12,7 @@ reconcile it. Nothing in CI runs `tofu apply`. The directory name stays
 Server chart tag is the `OCIRepository` in
 `kubernetes/apps/base/security/authentik/app/helmrelease.yaml` (`2026.8.3`
 when this skill was written). One chart ships server, worker and the embedded
-outpost. `postgresql.enabled: false`; the DB is `postgres-17`.
+outpost. `postgresql.enabled: false`; the DB is `postgres-18`.
 
 ## Tripwires
 

@@ -47,51 +47,22 @@ spec:
   # (components/cnpg-database).
   enableSuperuserAccess: true
 
-  # One-time logical import of the app databases from postgres-17 (cutover window,
-  # apps scaled to 0). Retired apps' databases are deliberately left behind.
+  # Acts only on a new Cluster (bootstrap is ignored once the Cluster exists). A rebuild
+  # restores from this cluster's own Barman Cloud archive, never by re-importing
+  # postgres-17 (frozen at the 2026-11-04 cutover). The archive serverName below must be
+  # bumped (postgres18-v3) in the same commit, or the restored primary refuses to archive
+  # into the non-empty v2 archive. Skill `databases` references/cnpg.md "Restore shape".
   bootstrap:
-    initdb:
-      import:
-        type: monolith
-        databases:
-          - authentik
-          - coder
-          - lidarr
-          - linkwarden
-          - litellm
-          - litellm_pgvector
-          - n8n
-          - paperless
-          - prowlarr
-          - radarr
-          - seerr
-          - sonarr
-        roles:
-          - authentik
-          - coder
-          - lidarr
-          - linkwarden
-          - litellm
-          - litellm_pgvector
-          - n8n
-          - paperless
-          - prowlarr
-          - radarr
-          - seerr
-          - sonarr
-        source:
-          externalCluster: postgres-17
+    recovery:
+      source: postgres18-v2
 
   externalClusters:
-    - name: postgres-17
-      connectionParameters:
-        host: postgres-17-rw.database.svc.cluster.local
-        user: postgres
-        dbname: postgres
-        sslmode: require
-      password:
-        name: cloudnative-pg-secret
-        key: password
+    - name: postgres18-v2
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: postgres
+          serverName: postgres18-v2
 
   # serverName is one per cluster generation: postgres18-v1 is the archive of the
   # empty cluster this one replaced. Increment it on any rebuild. Skill `databases`.

@@ -19,15 +19,6 @@ spec:
         annotations:
           reloader.stakater.com/auto: "true"
 
-        initContainers:
-          init-db:
-            image:
-              repository: ghcr.io/home-operations/postgres-init
-              tag: 18.6
-            envFrom: &envFrom
-              - secretRef:
-                  name: linkwarden-secret
-
         containers:
           app:
             image:
@@ -46,7 +37,9 @@ spec:
               # terminal alias with no cloud fallback: when the B70 is down tagging just fails.
               CUSTOM_OPENAI_BASE_URL: "http://litellm.ai.svc.cluster.local:4000/v1"
               OPENAI_MODEL: "chat-local"
-            envFrom: *envFrom
+            envFrom:
+              - secretRef:
+                  name: linkwarden-secret
             ports:
               - name: http
                 containerPort: &port 3000

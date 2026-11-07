@@ -19,15 +19,6 @@ spec:
         annotations:
           reloader.stakater.com/auto: "true"
 
-        initContainers:
-          init-postgres:
-            image:
-              repository: ghcr.io/home-operations/postgres-init
-              tag: 18.6
-            envFrom: &envFrom
-              - secretRef:
-                  name: n8n-secret
-
         containers:
           app:
             image:
@@ -63,7 +54,9 @@ spec:
               N8N_USER_FOLDER: /config
               N8N_EMAIL_MODE: smtp
 
-            envFrom: *envFrom
+            envFrom:
+              - secretRef:
+                  name: n8n-secret
             resources:
               requests:
                 cpu: 100m

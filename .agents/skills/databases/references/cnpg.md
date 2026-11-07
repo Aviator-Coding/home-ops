@@ -68,17 +68,24 @@ Backups go through the Barman Cloud plugin (`barman-cloud/`, ObjectStore `postgr
 cluster it replaced. The plugin renames the backup metrics to
 `barman_cloud_cloudnative_pg_io_*`; the backup-age rules accept either name.
 
-It was bootstrapped by a monolith `initdb.import` from postgres-17 with an explicit
-database and role list. Retired apps' databases (readarr, rreading-glasses, ducklake, `app`)
-and roles (immich, open-webui) were left behind on postgres-17. The `bootstrap` block only
-acts on a new Cluster.
+The live Cluster was created on 2026-11-04 by a monolith `initdb.import` from postgres-17.
+Retired apps' databases (readarr, rreading-glasses, ducklake, `app`) and roles (immich,
+open-webui) were left behind on postgres-17. Git now says `bootstrap.recovery` from this
+cluster's own archive (`postgres18-v2`). `bootstrap` only acts on a new Cluster, so the
+change does nothing to the running one; it exists so a rebuild restores current data. The
+old `initdb.import` would have re-imported postgres-17 as frozen at the cutover and come up
+healthy. Never put `initdb.import` back.
 
 Roles and databases are `DatabaseRole`/`Database` CRs from `components/cnpg-database`,
 applied by a sibling Flux Kustomization `<app>-db` (targetNamespace `database`) in each
 app's overlay. The app's Kustomization `dependsOn` it. Both CRs are `retain`: deleting
 them never drops data, so app retirement includes a manual `DROP DATABASE`/`DROP ROLE`.
 The role password comes from the app's 1Password item (`POSTGRES_DB_USER_PASSWORD`, or
-`CNPG_PASSWORD_KEY`); a change there is applied to the role by CNPG.
+`CNPG_PASSWORD_KEY`); a change there is applied to the role by CNPG. Apps have no
+`postgres-init` init container and their Secrets carry no superuser password
+(`INIT_POSTGRES_*` was removed 2026-11-06). A new Postgres app needs only the component on
+its overlay and its own item fields. `ai/litellm-pgvector` keeps a `postgres-init` Job for
+its schema (skill `litellm-proxy`).
 
 postgres-17 stays, untouched and unused, as the rollback target until it is retired.
 
@@ -108,6 +115,31 @@ that reports 0 or drops the series is the `*TimestampAbsent` pair
 archiver series is primary-only.
 
 ## Restore shape
+
+postgres-18 (Barman Cloud plugin). `cluster-18.yaml` already carries the recovery source:
+
+```yaml
+bootstrap:
+  recovery:
+    source: postgres18-v2
+externalClusters:
+  - name: postgres18-v2
+    plugin:
+      name: barman-cloud.cloudnative-pg.io
+      parameters:
+        barmanObjectName: postgres
+        serverName: postgres18-v2
+```
+
+A rebuild (the Cluster and its PVCs gone) also needs, in the same commit, the WAL
+archiver's `plugins[].parameters.serverName` bumped to `postgres18-v3`. The recovered
+primary refuses to archive into the non-empty v2 archive, so `ContinuousArchiving` stays
+False until it is bumped. After the restore, point `recovery.source` and the
+`externalClusters` entry at v3 for the next generation. Point-in-time:
+`recovery.recoveryTarget.targetTime`. Do not edit any of this on a live Cluster to cut over;
+`bootstrap` is read only at creation.
+
+postgres-17 (in-tree barman), or a move to a new Cluster name:
 
 1. Manual `Backup` (`method: barmanObjectStore`) against the running cluster.
    Wait for `phase=completed`.
