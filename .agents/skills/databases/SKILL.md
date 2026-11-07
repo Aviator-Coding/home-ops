@@ -32,6 +32,12 @@ image, scrape-target count).
    and still starts clean. FalkorDB (retired, [retired.md](references/retired.md)) measured
    2174 of 2199 nodes with AOF and 200 of 2199 on the image's stock RDB-only
    durability.
+6. **A postgres-18 rebuild restores from its own archive.** `bootstrap` is
+   read only at creation; never put back the cutover's `initdb.import` (it
+   re-imports postgres-17 frozen at 2026-11-04 and looks healthy). Bump the
+   archiver `serverName` in the same commit. Apps get roles from
+   `components/cnpg-database`, never a `postgres-init` container.
+   [cnpg.md](references/cnpg.md#restore-shape)
 
 ## Where things live
 
