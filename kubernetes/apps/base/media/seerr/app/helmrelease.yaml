@@ -54,6 +54,17 @@ spec:
                     key: SEERR_API_KEY
             envFrom: *envFrom
             probes:
+              startup:
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /api/v1/status
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 30
               liveness: &probes
                 enabled: true
                 custom: true
