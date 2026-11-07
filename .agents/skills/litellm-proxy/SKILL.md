@@ -69,6 +69,9 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 15. **Vector store: one model, one width** (`qwen/qwen3-embedding-8b` at
     2000 dims), registry under `extraConfig`, and never export
     `PG_VECTOR_API_KEY`. [vector-store.md](references/vector-store.md)
+16. **Never rotate `LITELLM_SALT_KEY`.** It encrypts every stored virtual
+    key; a new value leaves them all undecryptable. Only restore the original
+    from 1Password item `litellm`.
 
 ## Where things live
 
