@@ -2,6 +2,30 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   packageRules: [
     {
+      // Supply-chain pin: a tag can be re-pushed, a digest cannot. 16 of 53 apps were pinned by hand; peer repos pin 7-9 of 10.
+      // helm-values and kubernetes managers only: the annotated-dependency regex has no currentDigest capture (it would rewrite tuppr's version: field),
+      // and flux chart refs are OCIRepository tags. kubernetes/** only, so Talos, mise and CI images are untouched.
+      // rsshub and browserless/chrome float on latest with their own digest rule. quay.io/ceph/ceph: a CephCluster image change restarts every Ceph daemon, pin it with an attended Ceph bump.
+      // Adding a digest changes the pod spec, so each newly pinned workload rolls once. Skill `renovate`.
+      description: "Pin container image digests in kubernetes/**",
+      matchDatasources: ["docker"],
+      matchManagers: ["helm-values", "kubernetes"],
+      matchFileNames: ["kubernetes/**"],
+      matchPackageNames: ["!ghcr.io/diygod/rsshub", "!docker.io/browserless/chrome", "!quay.io/ceph/ceph"],
+      pinDigests: true,
+    },
+    {
+      // MUST stay after groups.json5 (later preset, last match wins): the Talos, Tdarr and Dragonfly group rules would otherwise split pins into their own branches.
+      description: "Keep every digest pin in the one Pin Dependencies PR",
+      matchUpdateTypes: ["pinDigest"],
+      groupName: "Pin Dependencies",
+      groupSlug: "pin-dependencies",
+      group: {
+        commitMessageTopic: "dependencies",
+        commitMessageExtra: "",
+      },
+    },
+    {
       // Floor >=1.93.0 or classifier_type llm is ignored. Skill `litellm-proxy` references/auto-router.md.
       description: "LiteLLM plain vX.Y.Z tags; floor >=1.93.0 for LLM classifier",
       matchDatasources: ["docker"],
