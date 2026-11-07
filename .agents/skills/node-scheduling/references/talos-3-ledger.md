@@ -1,6 +1,6 @@
 # talos-3 placement ledger
 
-talos-3 is the only node with `devic.es/b70` (capacity 99; 0 on talos-1 and talos-2). It also hosts two of the six Ceph OSDs, a mon, and the `postgres-17` instance pinned one-per-node by anti-affinity. The general fleet may land here only as overflow.
+talos-3 is the only node with `devic.es/b70` (capacity 99; 0 on talos-1 and talos-2). It also hosts two of the six Ceph OSDs, a mon, and the `postgres-18` instance pinned one-per-node by anti-affinity. The general fleet may land here only as overflow.
 
 ## The taint
 
@@ -26,7 +26,7 @@ These belong on talos-3. Do not copy the toleration onto a workload that merely 
 | GPU: `ai/vllm`, `ai/embedding-gpu`, `media/tdarr` node | each HelmRelease |
 | Ceph mgr, mon, OSDs | `CephCluster.spec.placement.all` |
 | Rook operator `discover` DaemonSet | operator HelmRelease |
-| `postgres-17` | `database/cloudnative-pg/cluster-17/cluster-17.yaml` |
+| `postgres-18` | `database/cloudnative-pg/cluster-18/cluster-18.yaml` |
 | `generic-device-plugin`, intel GPU plugin, promtail | each HelmRelease |
 | rbd and cephfs CSI nodeplugins | `operator/csi-driver-tolerations.yaml` |
 | multus | JSON6902 postRenderer on the multus HelmRelease |

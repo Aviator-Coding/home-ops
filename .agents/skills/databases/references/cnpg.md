@@ -3,12 +3,13 @@
 The operator chart tag is the OCIRepository `ref.tag` in
 `kubernetes/apps/base/database/cloudnative-pg/operator/helmrelease.yaml`.
 The cluster image, instance count, and `serverName` are in
-`cluster-17/cluster-17.yaml`. The Readme's chart version is not authoritative.
+`cluster-18/cluster-18.yaml`. The Readme's chart version is not authoritative.
 
-The clusters back up through the in-tree barman (`barmanObjectStore`), which
-CNPG 1.31.0 removes. Renovate never automerges the operator chart or image
-(`.renovate/autoMerge.json5`), so an upgrade to 1.31.0 or later is a human
-decision that needs a backup path migration first.
+postgres-18 is the only Cluster and backs up through the Barman Cloud plugin, so
+nothing here uses the in-tree `barmanObjectStore` that CNPG 1.31.0 removes.
+postgres-17 (the last in-tree user) was retired 2026-11-07. Renovate never
+automerges the operator chart or image (`.renovate/autoMerge.json5`); an operator
+bump is a human review, not a backup migration.
 
 ## One barman destination
 
@@ -20,18 +21,18 @@ off-site copy is a mirror of the archive, not a second destination:
 `cloudflare-r2` 1Password item exists. Un-suspending it is a deliberate
 follow-up, not a side effect of editing the cluster.
 
-Current archive: `destinationPath: s3://home-ops-postgres-cluster/`,
-`serverName: postgres17-v5`, endpoint the NAS MinIO URL, retention `30d`.
-Bootstrap recovery source is the previous server name (`postgres17-v4`).
-Increment `serverName` on a restore so the new archive does not collide
-(archives so far: v3, v4, v5).
+Current archive: `destinationPath: s3://home-ops-postgres-cluster/` on the NAS
+MinIO (not Ceph RGW), `serverName: postgres18-v2`, retention `30d`. Increment
+`serverName` on a restore so the new archive does not collide. `postgres17-v5` is
+the retired postgres-17's last archive, kept as its rollback copy until 14 days
+after the retirement merges. `postgres17-v3`, `postgres17-v4` and `postgres18-v1` hold
+nothing current and are safe to delete.
 
 Apps use `postgres-18-rw.database.svc.cluster.local:5432`, hardcoded in each
 app's ExternalSecret. A cutover updates those strings. It is not a
 1Password template.
 
-Three instances, required pod anti-affinity on hostname, 100Gi `ceph-block`
-each. One instance must tolerate `home-operations.com/dedicated`
+Three instances, required pod anti-affinity on hostname. One instance must tolerate `home-operations.com/dedicated`
 `PreferNoSchedule` or the spread cannot place the third pod.
 
 ## TLS
@@ -44,10 +45,10 @@ the next root change breaks replication reconnects on every database of the shar
 cluster. cert-manager also leaves `ca.crt` empty for ACME certificates. This was tried for
 DuckLake clients and rejected.
 
-`cluster-17` instead adds the LAN name of `postgres-17-lb` to the CNPG-issued certificate
-through `certificates.serverAltDNSNames` (`postgres-17.${SECRET_DOMAIN}`), so a LAN client
+`cluster-18` instead adds the LAN name of `postgres-18-lb` to the CNPG-issued certificate
+through `certificates.serverAltDNSNames` (`postgres-18.${SECRET_DOMAIN}`), so a LAN client
 can use `sslmode=verify-full` with the CNPG CA
-(`kubectl -n database get secret postgres-17-ca -o jsonpath='{.data.ca\.crt}'`). That CA is
+(`kubectl -n database get secret postgres-18-ca -o jsonpath='{.data.ca\.crt}'`). That CA is
 regenerated about every 90 days, so a copied CA goes stale. `sslmode=require` encrypts
 without authenticating the server. Changing the alt-name list reissues the server
 certificate on the shared cluster. If `verify-full` without a copied CA is ever needed,
@@ -70,7 +71,7 @@ cluster it replaced. The plugin renames the backup metrics to
 
 The live Cluster was created on 2026-11-04 by a monolith `initdb.import` from postgres-17.
 Retired apps' databases (readarr, rreading-glasses, ducklake, `app`) and roles (immich,
-open-webui) were left behind on postgres-17. Git now says `bootstrap.recovery` from this
+open-webui) were left behind on postgres-17 and went with it. Git now says `bootstrap.recovery` from this
 cluster's own archive (`postgres18-v2`). `bootstrap` only acts on a new Cluster, so the
 change does nothing to the running one; it exists so a rebuild restores current data. The
 old `initdb.import` would have re-imported postgres-17 as frozen at the cutover and come up
@@ -87,7 +88,9 @@ The role password comes from the app's 1Password item (`POSTGRES_DB_USER_PASSWOR
 its overlay and its own item fields. `ai/litellm-pgvector` keeps a `postgres-init` Job for
 its schema (skill `litellm-proxy`).
 
-postgres-17 stays, untouched and unused, as the rollback target until it is retired.
+postgres-17 was retired 2026-11-07 (Flux prune removed the Cluster and its ceph-block
+PVCs). Its rollback copy is the `postgres17-v5` archive; restoring it needs a Postgres 17
+image and a new Cluster name (the move shape below).
 
 ## Health and metrics
 
@@ -139,13 +142,14 @@ False until it is bumped. After the restore, point `recovery.source` and the
 `recovery.recoveryTarget.targetTime`. Do not edit any of this on a live Cluster to cut over;
 `bootstrap` is read only at creation.
 
-postgres-17 (in-tree barman), or a move to a new Cluster name:
+A move to a new Cluster name:
 
-1. Manual `Backup` (`method: barmanObjectStore`) against the running cluster.
-   Wait for `phase=completed`.
+1. Manual `Backup` (`method: plugin`, `pluginConfiguration.name:
+   barman-cloud.cloudnative-pg.io`) against the running cluster. Wait for
+   `phase=completed`.
 2. New Cluster manifest: new `metadata.name`, `bootstrap.recovery.source`
-   set to the previous `serverName`, matching `externalClusters[]`, and a
-   new `backup.barmanObjectStore.serverName`.
+   set to the previous `serverName`, matching plugin `externalClusters[]`, and
+   a new archiver `plugins[].parameters.serverName`.
 3. Sibling Flux Kustomization that `dependsOn` the existing cluster during
    cutover. That overlay file is not edited from an apps-only change unless
    the restore is the task.

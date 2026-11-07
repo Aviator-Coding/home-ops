@@ -8,16 +8,19 @@ check (skill `observability`).
 
 ## Restore into a fresh cluster
 
-1. Apply a manual `Backup` (`method: barmanObjectStore`, `cluster.name:
-   postgres-17`) and wait for `phase=completed`.
-2. Copy `cluster-17/cluster-17.yaml`. New `metadata.name`. Set
-   `bootstrap.recovery.source` and `externalClusters[]` to the previous
-   `serverName`. Set `backup.barmanObjectStore.serverName` to a new value so
-   the archives stay distinct.
+postgres-18 is the only Cluster (postgres-17 was retired 2026-11-07). The
+rebuild-in-place shape is "Restore shape" in `references/cnpg.md`.
+
+1. Apply a manual `Backup` (`method: plugin`, `cluster.name: postgres-18`) and
+   wait for `phase=completed`.
+2. Copy `cluster-18/cluster-18.yaml`. New `metadata.name`. Set
+   `bootstrap.recovery.source` and the plugin `externalClusters[]` to the
+   previous `serverName`. Set the archiver `plugins[].parameters.serverName` to
+   a new value so the archives stay distinct.
 3. Add a sibling Flux Kustomization that `dependsOn` the existing cluster
    for the cutover window.
 4. Move each app by editing the host hardcoded in its ExternalSecret
-   (`postgres-17-rw.database.svc.cluster.local:5432`), then remove the old
+   (`postgres-18-rw.database.svc.cluster.local:5432`), then remove the old
    cluster after no client backends remain.
 
 `barman-cloud-backup-list` needs the AWS keys from `cloudnative-pg-secret`

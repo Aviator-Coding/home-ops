@@ -25,7 +25,8 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
    (`matchFileNames: kubernetes/apps/base/renovate/**`), kopiur images, Cilium
    Rook-Ceph and `quay.io/ceph/ceph` (docker/helm, any update type), the four Talos packages, the five Kubernetes control-plane/kubelet packages,
    `ghcr.io/berriai/litellm-non_root`, and the CloudNativePG chart and operator
-   image (1.31.0 removes the in-tree barman backup; skill `databases`). rsshub
+   image (a bump rolls the shared postgres-18 Cluster; 1.31.0's in-tree barman
+   removal no longer applies since postgres-17 retired; skill `databases`). rsshub
    digests stay `automerge: true` on `before 6am on monday` (America/New_York,
    set in `.renovaterc.json5`). 0.x minors open PRs but never automerge.
 4. **A version pin uses a negated regex, never a bare `<X.Y.Z`.**

@@ -33,7 +33,7 @@ and response bodies in `LiteLLM_SpendLogs` (`store_prompts_in_spend_logs` on
 - That key is the gate for the built-in pruner: while null, no
   `spend_log_cleanup_job` is scheduled at all. Set, it runs daily.
 - `"30d"` (exactly 2,592,000 s), not `"1mo"` (a calendar month, 28-31 days).
-  It matches the `postgres-17` Barman `retentionPolicy: 30d`, so logged content
+  It matches the `postgres-18` Barman Cloud ObjectStore `retentionPolicy: 30d`, so logged content
   does not outlive the backup window (captain decision
   `litellm-log-backup-export`, option C). CI pins both.
 - Tradeoff: the pruner deletes whole `LiteLLM_SpendLogs` rows, so per-request
@@ -46,7 +46,7 @@ and response bodies in `LiteLLM_SpendLogs` (`store_prompts_in_spend_logs` on
 
 ## Confidentiality
 
-- Primary store: the `litellm` DB on shared `postgres-17`. It leaves the
+- Primary store: the `litellm` DB on shared `postgres-18`. It leaves the
   cluster only through Barman to the LAN TrueNAS MinIO
   (`https://nas.${SECRET_DOMAIN}:9000`, 30d), which is on-premises and not
   replicated to R2. Captain-accepted as a sink for full-content logs.
@@ -136,7 +136,7 @@ curl -s -H "Authorization: Bearer $MK" "http://127.0.0.1:4000/spend/logs/ui/<req
 
 ```bash
 DBURL="$(kubectl -n ai get secret litellm-secret -o jsonpath='{.data.DATABASE_URL}' | base64 -d)"
-PG="$(kubectl -n database get cluster postgres-17 -o jsonpath='{.status.currentPrimary}')"
+PG="$(kubectl -n database get cluster postgres-18 -o jsonpath='{.status.currentPrimary}')"
 
 kubectl -n database exec -i "$PG" -c postgres -- psql "$DBURL" -P pager=off -f - <<'SQL'
 SELECT request_id, model_group, model, spend, prompt_tokens, completion_tokens, "startTime",

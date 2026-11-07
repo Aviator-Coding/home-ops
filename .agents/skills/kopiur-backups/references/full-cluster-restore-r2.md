@@ -40,7 +40,7 @@ What survives a full loss, off-cluster:
 | Store | Holds |
 |---|---|
 | Cloudflare R2 bucket `kopiur` | kopiur `r2` repository, all 32 backed-up claims (daily) |
-| LAN TrueNAS MinIO | CNPG barman archive for `database/postgres-17`; the retired VolSync `minio` restic repositories (no live claim since 2026-11-01) |
+| LAN TrueNAS MinIO | CNPG Barman Cloud archive for `database/postgres-18`; the retired VolSync `minio` restic repositories (no live claim since 2026-11-01) |
 | 1Password `Home-Lab` | bootstrap and Talos secrets (`vals`) |
 | 1Password `Homelab` | `kopiur-r2`, `kopiur-ceph`, `cluster`, and every other ExternalSecret source |
 | GitHub | this repo |
@@ -96,34 +96,20 @@ A `Restore` must name both `r2` and `<app>-r2`: kopiur rejects a `repository` th
 named policy's repository set. `fromPolicy` reads the policy's spec, not its status, so a
 suspended r2 policy still resolves (source-read at kopiur 0.10.10; not yet drilled).
 
-**Postgres, in the same commit (explicit step).** `database/postgres-17`
-(`kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml`) uses the
-`previousCluster` / `currentCluster` pattern: the `&previousCluster` anchor is
-`bootstrap.recovery.source` and the recovery external cluster's `serverName`, the
-`&currentCluster` anchor is `backup.barmanObjectStore.serverName`. Git still reads
-`previousCluster: postgres17-v4` while the live cluster has archived to `postgres17-v5` since
-2026-04-26. How Git should carry this permanently is still an open decision, so the DR commit
-must bump **both** anchors at rebuild time:
-
-```diff
-# kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml   (DR commit)
--      source: &previousCluster postgres17-v4
-+      source: &previousCluster postgres17-v5    # the archive the old cluster was writing
-...
--      serverName: &currentCluster postgres17-v5
-+      serverName: &currentCluster postgres17-v6  # a fresh, empty path
-```
-
-Why both: CNPG reads `spec.bootstrap` only when a `Cluster` is first created, so the rebuild is
-the one moment `previousCluster` matters, and it must name the live archive or Postgres recovers
-to roughly its 2026-04-26 state (or fails). A recovering cluster also refuses to archive into a
-non-empty path, so `currentCluster` must move to an unused one. Bump only `previousCluster` and
-the new cluster fails its WAL archive check with `WAL archive check failed ... Expected empty
-archive`, because v5 already holds the old cluster's WALs. If `currentCluster` has moved past v5
-by the time of the loss, apply the same rule to what the old cluster was actually running:
-`previousCluster` = its last `currentCluster`, `currentCluster` = the next unused version. Confirm on the MinIO
-bucket `home-ops-postgres-cluster` that the source path holds recent WALs. Do not work around
-the archive check with an annotation; bump the path.
+**Postgres, in the same commit (explicit step).** `database/postgres-18`
+(`kubernetes/apps/base/database/cloudnative-pg/cluster-18/cluster-18.yaml`) already carries
+`bootstrap.recovery` from its own Barman Cloud archive (`externalClusters[]` plugin entry,
+`serverName: postgres18-v2`). CNPG reads `spec.bootstrap` only when a `Cluster` is first
+created, so the rebuild is the one moment it matters. A recovering cluster also refuses to
+archive into a non-empty path, so the DR commit bumps the WAL archiver
+`plugins[].parameters.serverName` to the next unused version (`postgres18-v3`) and leaves the
+recovery source on the archive the old cluster was writing. Bump only the source and the new
+cluster fails its WAL archive check with `Expected empty archive`; `ContinuousArchiving` stays
+False. If the archiver has moved past v2 by the time of the loss, apply the same rule to what
+the old cluster was actually running: source = its last archiver `serverName`, archiver = the
+next unused version. Confirm on the MinIO bucket `home-ops-postgres-cluster` that the source
+path holds recent WALs. Do not work around the archive check with an annotation; bump the path.
+Skill `databases` `references/cnpg.md` "Restore shape".
 
 If the MinIO NAS is lost too, Postgres has no off-site copy (the offsite mirror is suspended,
 `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/README.md`) and is not recoverable.
@@ -251,7 +237,7 @@ removed with the operator (issue #2202 PR-6).
    and the app works: log in, data present. A file-count check needs a read-only reader pod on
    the claim, compared with the snapshot's `Snapshot.status.stats` (kopia skips `CACHEDIR.TAG`
    directories, so fewer files than the old live volume can be correct).
-2. Postgres: `kubectl -n database get cluster postgres-17` healthy, recovered to at or near
+2. Postgres: `kubectl -n database get cluster postgres-18` healthy, recovered to at or near
    `T_LOSS`, `ContinuousArchiving=True` against the new `serverName`.
 
 ## Phase 6 - Exit DR mode

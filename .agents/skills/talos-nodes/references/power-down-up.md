@@ -31,17 +31,17 @@ flux suspend hr kopiur -n system  && kubectl -n system scale deploy/kopiur-contr
 
 If that does not hold, suspend each `SnapshotPolicy` (`spec.suspend: true`). See `kubernetes/components/kopiur/Readme.md`.
 
-## Hibernate postgres-17 only for a long outage
+## Hibernate postgres-18 only for a long outage
 
-Skip this for a short drain-and-power cycle. The first two shutdowns already give CNPG a clean switchover. Hibernation takes the database down for the whole window, including Authentik SSO and every other client of `postgres-17-rw`.
+Skip this for a short drain-and-power cycle. The first two shutdowns already give CNPG a clean switchover. Hibernation takes the database down for the whole window, including Authentik SSO and every other client of `postgres-18-rw`.
 
-`cnpg.io/hibernation=on` is cluster-wide. It deletes the primary first, then the replicas, on every node. It cannot target "the last node". Set it before any drain, and only when `kubectl -n database get cluster postgres-17` already says healthy. The operator defers hibernation otherwise. PVCs stay Bound. Resume with `hibernation=off` brings the same primary back.
+`cnpg.io/hibernation=on` is cluster-wide. It deletes the primary first, then the replicas, on every node. It cannot target "the last node". Set it before any drain, and only when `kubectl -n database get cluster postgres-18` already says healthy. The operator defers hibernation otherwise. PVCs stay Bound. Resume with `hibernation=off` brings the same primary back.
 
 The chart tag is the OCIRepository in `kubernetes/apps/base/database/cloudnative-pg/operator/`. Re-read the running operator image before treating an upstream source line as current.
 
 ```sh
-kubectl -n database annotate cluster postgres-17 cnpg.io/hibernation=on --overwrite
-kubectl -n database get cluster postgres-17 -o jsonpath='{.status.conditions[?(@.type=="cnpg.io/hibernation")].reason}'
+kubectl -n database annotate cluster postgres-18 cnpg.io/hibernation=on --overwrite
+kubectl -n database get cluster postgres-18 -o jsonpath='{.status.conditions[?(@.type=="cnpg.io/hibernation")].reason}'
 ```
 
 ## Shutdown
@@ -69,7 +69,7 @@ Cut power only after all three calls have returned.
 4. `kubectl get nodes` shows three Ready.
 5. `ceph -s` is `HEALTH_OK`, 6/6 OSDs, 3 mons. Then `ceph osd unset noout`.
 6. `flux resume hr kopiur -n system`. Resume restores the Git replica count.
-7. If you set hibernation: `kubectl -n database annotate cluster postgres-17 cnpg.io/hibernation=off --overwrite`. Wait for healthy, 3/3.
+7. If you set hibernation: `kubectl -n database annotate cluster postgres-18 cnpg.io/hibernation=off --overwrite`. Wait for healthy, 3/3.
 8. `devic.es/b70` allocatable is 99 on talos-3 and 0 on the others.
 
 ```sh

@@ -7,7 +7,7 @@ Chart and image move together. Tag is
 There is no 2026.6 or 2026.7.
 
 One line forward is one Django migration set. Migrations are one-way. Confirm
-CNPG `database/postgres-17` `Ready`, `ContinuousArchiving` and a recent
+CNPG `database/postgres-18` `Ready`, `ContinuousArchiving` and a recent
 successful `Backup` before the bump. The bundled Bitnami postgres subchart is
 disabled here. Its image bump is irrelevant.
 
