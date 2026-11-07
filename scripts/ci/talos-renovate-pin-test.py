@@ -672,20 +672,22 @@ def test_no_live_version_bump() -> None:
     if not base:
         return  # no base available; shape checks above still ran
 
-    for rel in (
-        "kubernetes/apps/base/system-upgrade/tuppr/upgrades/talosupgrade.yaml",
-    ):
-        diff = subprocess.run(
-            ["git", "diff", "--name-only", base, "HEAD", "--", rel],
-            cwd=ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        require(
-            diff.returncode == 0 and diff.stdout.strip() == "",
-            f"{rel} must not change in this PR (proposals only); diff={diff.stdout!r}",
-        )
+    # Compare the version pin only: healthChecks edits in the same file are not an upgrade.
+    rel = "kubernetes/apps/base/system-upgrade/tuppr/upgrades/talosupgrade.yaml"
+    show = subprocess.run(
+        ["git", "show", f"{base}:{rel}"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    require(show.returncode == 0, f"could not read {rel} at {base}: {show.stderr.strip()}")
+    m = re.search(r"(?m)^\s*version:\s*(v[\d.]+)\s*$", show.stdout)
+    require(m is not None, f"could not parse spec.talos.version from {rel} at {base}")
+    require(
+        m.group(1) == tu,
+        f"{rel} version must not change in this PR (proposals only); {m.group(1)} -> {tu}",
+    )
 
 
 def main() -> int:
