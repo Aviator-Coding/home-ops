@@ -1,0 +1,109 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hermes
+spec:
+  # Hermes has a terminal, execute_code and a browser, cluster-wide read RBAC and pods/exec in ai,
+  # so this fences what a hijacked session can reach: the LAN and node IPs are cut out of egress.
+  # This file is not a configMapGenerator payload; applying or editing it does not restart the pod.
+  # A new tool target (LAN host, in-cluster Service) needs its own egress rule. Skill `hermes-agent`.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+      app.kubernetes.io/controller: hermes
+  ingress:
+    # kubelet tcpSocket probes on :9119 come from the local host.
+    - fromEntities:
+        - host
+    # Dashboard (hermes route, :9119) and code-server (hermes-code route, :12321), envoy-internal only.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports:
+            - port: "9119"
+              protocol: TCP
+            - port: "12321"
+              protocol: TCP
+    # Gatus "Hermes Gateway" check on hermes.ai.svc:8642/health (static entry, not through Envoy).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: gatus
+      toPorts:
+        - ports:
+            - port: "8642"
+              protocol: TCP
+    # DNS replies from CoreDNS. No toPorts on purpose: a reply lands on an ephemeral port, never 53.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+  egress:
+    # Name resolution through CoreDNS.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Every LLM call (providers.litellm, SUMMARY_LLM_URL, delegation, auxiliary).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ai
+            app.kubernetes.io/name: litellm
+            app.kubernetes.io/instance: litellm
+      toPorts:
+        - ports:
+            - port: "4000"
+              protocol: TCP
+    # Web search (SEARXNG_URL).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ai
+            app.kubernetes.io/name: searxng
+            app.kubernetes.io/controller: searxng
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # MCP gateway via the LAN route (MCP_GATEWAY_URL https://mcp...), which resolves to the
+    # envoy-internal LoadBalancer. Policy sees the backend port after service translation: 10443.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports:
+            - port: "10443"
+              protocol: TCP
+    # kubectl from the terminal (in-cluster ServiceAccount, kubernetes Service -> nodes :6443).
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # Discord, Telegram, GitHub (git, GraphQL), package indexes, web_extract and the browser.
+    # Private, CGNAT and link-local ranges are cut out so a session cannot reach the LAN or the nodes.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
+            - 169.254.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
