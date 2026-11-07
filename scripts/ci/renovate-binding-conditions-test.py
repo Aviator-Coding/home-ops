@@ -272,17 +272,26 @@ def test_automerge_config_parses() -> list[dict[str, Any]]:
     cfg = parse_json5_comments(AUTOMERGE.read_text())
     rules = cfg.get("packageRules") or []
     require(isinstance(rules, list) and rules, "autoMerge.json5 has no packageRules")
-    # Exactly three datasource blanket enable rules (digest/patch/minor) plus one
-    # manager rule for github-actions + mise (moved here from the retired mortyops
-    # presets, as automergeType "pr"). Do not allow another automerge:true rule to
-    # slip in (that would widen automerge).
+    # Exactly four datasource blanket enable rules (digest/pinDigest/patch/minor)
+    # plus one manager rule for github-actions + mise (moved here from the retired
+    # mortyops presets, as automergeType "pr"). Do not allow another automerge:true
+    # rule to slip in (that would widen automerge).
     enable_rules = [r for r in rules if r.get("automerge") is True]
     blanket = [r for r in enable_rules if "matchDatasources" in r]
     manager = [r for r in enable_rules if "matchDatasources" not in r]
     require(
-        len(blanket) == 3 and len(manager) == 1,
-        f"expected 3 datasource blanket rules (digest/patch/minor) + 1 manager rule, "
+        len(blanket) == 4 and len(manager) == 1,
+        f"expected 4 datasource blanket rules (digest/pinDigest/patch/minor) + 1 manager rule, "
         f"got {len(blanket)} + {len(manager)} - do not widen automerge",
+    )
+    # The pinDigest rule keeps the tag and only adds its current digest; it must
+    # stay docker-only and match nothing but pinDigest.
+    pin = [r for r in blanket if "pinDigest" in (r.get("matchUpdateTypes") or [])]
+    require(
+        len(pin) == 1
+        and pin[0].get("matchUpdateTypes") == ["pinDigest"]
+        and pin[0].get("matchDatasources") == ["docker"],
+        f"expected one docker-only pinDigest automerge rule: {pin}",
     )
     require(
         sorted(manager[0].get("matchManagers") or []) == ["github-actions", "mise"],

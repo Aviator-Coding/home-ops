@@ -11,6 +11,16 @@
       ignoreTests: false,
     },
     {
+      // Same risk class as digest: the tag stays, it only gains the digest it resolves to today. The "digest" type does not match "pinDigest".
+      // The never-automerge rules below still win, so a pin PR grouped with Cilium, Rook, kopiur or Renovate's own chart waits for review. Skill `renovate`.
+      description: "Auto merge container digest pins",
+      matchDatasources: ["docker"],
+      automerge: true,
+      automergeType: "pr",
+      matchUpdateTypes: ["pinDigest"],
+      ignoreTests: false,
+    },
+    {
       description: "Auto merge all container and helm patch updates",
       matchDatasources: ["docker", "helm", "github-releases", "github-tags"],
       automerge: true,
