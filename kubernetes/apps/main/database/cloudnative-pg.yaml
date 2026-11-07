@@ -9,6 +9,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
   interval: 30m
   path: ./kubernetes/apps/base/database/cloudnative-pg/operator
   prune: true
@@ -107,6 +110,9 @@ spec:
       namespace: rook-ceph
     - name: external-secrets
       namespace: security
+    # Instances sit on openebs-hostpath (cluster-18.yaml storageClass).
+    - name: openebs-hostpath
+      namespace: system
   # Same gate as postgres-cluster-17: readyInstances + ContinuousArchiving, not Ready.
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
@@ -255,6 +261,8 @@ spec:
       namespace: database
     # The R2 half is an ExternalSecret, so ESO must be up for it to resolve.
     - name: external-secrets
+      namespace: security
+    - name: onepassword-store
       namespace: security
   interval: 30m
   path: ./kubernetes/apps/base/database/cloudnative-pg/offsite-mirror

@@ -18,6 +18,8 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
+    # Tunnel routes need the public DNS records cloudflare-dns writes.
+    - name: cloudflare-dns
   prune: true
   sourceRef:
     kind: GitRepository

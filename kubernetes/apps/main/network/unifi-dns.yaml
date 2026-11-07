@@ -9,6 +9,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/base/network/unifi-dns/app
   postBuild:

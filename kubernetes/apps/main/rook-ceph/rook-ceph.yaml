@@ -16,7 +16,11 @@ spec:
   interval: 30m
   timeout: 15m
   path: "./kubernetes/apps/base/rook-ceph/rook-ceph/operator"
-  prune: false # Never delete this
+  # prune: false only stops removal of objects dropped from Git. Deleting this
+  # Kustomization still deletes its resources (cluster-apps sets
+  # deletionPolicy: WaitForTermination). The real guard is the
+  # kustomize.toolkit.fluxcd.io/prune: disabled annotation on the HelmRelease/CR.
+  prune: false
   sourceRef:
     kind: GitRepository
     name: flux-system
@@ -44,17 +48,37 @@ spec:
   dependsOn:
     - name: onepassword-store
       namespace: security
-  prune: false # Never delete this
+    # Operator owns the ceph.rook.io CRDs the cluster chart renders.
+    - name: rook-ceph
+    # ceph-backup-pvc (../backup) is an openebs-hostpath claim.
+    - name: openebs-hostpath
+      namespace: system
+  # Same as the operator: prune: false does not survive a Kustomization delete
+  # under deletionPolicy: WaitForTermination. The guard is the
+  # kustomize.toolkit.fluxcd.io/prune: disabled annotation on the HelmRelease/CR.
+  prune: false
   sourceRef:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
+  # Stays false: wait:true would ignore healthChecks and assess the inventory.
   wait: false
   # rook-ceph-cluster's chart only renders the toolbox Deployment directly -
   # mons/OSDs/mgr are created dynamically by the operator from the CephCluster
-  # CR, not by this Helm template, so they can't be named here.
+  # CR, not by this Helm template, so they can't be named here. The CephCluster
+  # itself is the cluster-level signal.
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
       name: rook-ceph-tools
       namespace: rook-ceph
+    - apiVersion: ceph.rook.io/v1
+      kind: CephCluster
+      name: rook-ceph
+      namespace: rook-ceph
+  healthCheckExprs:
+    - apiVersion: ceph.rook.io/v1
+      kind: CephCluster
+      # has() guard: status.ceph is absent until the operator's first health poll.
+      failed: has(status.ceph) && status.ceph.health == 'HEALTH_ERR'
+      current: status.phase == 'Ready'

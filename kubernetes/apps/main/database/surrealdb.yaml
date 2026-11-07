@@ -22,6 +22,8 @@ spec:
   dependsOn:
     - name: external-secrets
       namespace: security
+    - name: onepassword-store
+      namespace: security
   healthCheckExprs:
     - apiVersion: apps/v1
       kind: Deployment

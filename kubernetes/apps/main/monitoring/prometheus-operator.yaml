@@ -18,4 +18,6 @@ spec:
     kind: GitRepository
     name: flux-system
     namespace: flux-system
-  wait: false
+  # CRD gate for kube-prometheus-stack (dependsOn). The path is only a CRD
+  # HelmRelease, so wait:true holds Ready until the chart has installed them.
+  wait: true
