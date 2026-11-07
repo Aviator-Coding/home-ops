@@ -37,6 +37,12 @@ spec:
           # Outranks the CI runners (1000000) so the 8-CPU request below is always schedulable on
           # talos-3 and a runner burst cannot preempt chat. See skill b70-llm-serving references/contention.md.
           priorityClassName: chat-gpu-high
+          # The llama.cpp server-intel image has no USER (runs as root) and the /models PVC and the
+          # GPU nodes are root-owned, so runAsNonRoot is not set. No fsGroup: it would re-own /models.
+          # Same root + RuntimeDefault + drop ALL shape as the tdarr GPU worker.
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           # talos-3 PreferNoSchedule: this pod can only land there, so it tolerates the penalty.
           # See skill node-scheduling.
           tolerations:
@@ -128,6 +134,13 @@ spec:
             envFrom: &envFrom
               - secretRef:
                   name: vllm-secret
+            # readOnlyRootFilesystem stays off: llama.cpp, the SYCL/Level Zero runtime and glibc
+            # write caches under /tmp and $HOME that are not on a volume.
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
             resources:
               requests:
                 # Equal to -t. The request is the CFS weight against tdarr on the same node.
