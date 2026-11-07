@@ -73,14 +73,14 @@ Scope rules (captain decisions B4/D4, still binding):
 
 ## Database bootstrap
 
-`app/dbinit.yaml` is a `postgres-init` Job, not a CNPG `Database` CR: that
-CRD requires `spec.owner` and does not create the role (roles live in
-`spec.managed.roles` on the shared Cluster, which 15+ apps depend on). There
-are no initContainers on `LiteLLMProxySpec` either. The Job is idempotent and
-carries `kustomize.toolkit.fluxcd.io/force: enabled` (the only value Flux
-honours) so an image bump can recreate the immutable Job. Re-run by hand:
-`kubectl -n ai delete job litellm-db-init`. On a first deploy the proxy may
-crashloop for a few seconds until the Job finishes.
+The `litellm` role and database are `DatabaseRole`/`Database` CRs from
+`components/cnpg-database`, applied by the sibling `litellm-db` Kustomization
+in `kubernetes/apps/main/ai/litellm.yaml`; the proxy Kustomization `dependsOn`
+it. The role password is the `litellm` item's `POSTGRES_DB_USER_PASSWORD`, the
+same field `DATABASE_URL` reads. The old `postgres-init` Job is gone, and
+`litellm-secret` no longer carries the Postgres superuser password. Only
+`ai/litellm-pgvector` still runs a `postgres-init` Job, for its `vector`
+schema ([vector-store.md](vector-store.md)). Skill `databases`.
 
 ## Internal route
 

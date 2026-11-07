@@ -9,7 +9,6 @@ resources:
   - ./externalsecret.yaml
   - ./pushsecret-sso.yaml
   - ./pushsecret-pgvector.yaml
-  - ./dbinit.yaml
   - ./litellmproxy.yaml
   - ./httproute-internal.yaml
   - ./models

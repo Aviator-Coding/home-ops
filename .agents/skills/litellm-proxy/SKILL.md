@@ -81,8 +81,8 @@ Money and security first. Each has a CI gate; never weaken one to land a change.
 | Models (one CR each) | `kubernetes/apps/base/ai/litellm/app/models/` |
 | Virtual keys + PushSecrets | `kubernetes/apps/base/ai/litellm/app/virtualkeys/` |
 | Internal route + `/anthropic` 404 filter | `kubernetes/apps/base/ai/litellm/app/httproute-internal.yaml` |
-| `litellm-secret` (from 1Password items `litellm`, `cloudnative-pg`, `ai-keys`, `litellm-sso`, `litellm-pgvector`) | `kubernetes/apps/base/ai/litellm/app/externalsecret.yaml` |
-| DB init Job, alerts, scrape | `app/dbinit.yaml`, `app/prometheusrule.yaml`, `app/servicemonitor.yaml` |
+| `litellm-secret` (from 1Password items `litellm`, `ai-keys`, `cliproxyapi`, `litellm-sso`, `litellm-pgvector`) | `kubernetes/apps/base/ai/litellm/app/externalsecret.yaml` |
+| Role and database (`litellm-db`, component `cnpg-database`), alerts, scrape | `kubernetes/apps/main/ai/litellm.yaml`, `app/prometheusrule.yaml`, `app/servicemonitor.yaml` |
 | Operator chart | `kubernetes/apps/base/ai/litellm-operator/app/helmrelease.yaml` |
 | Vector-store server | `kubernetes/apps/base/ai/litellm-pgvector/app/` |
 | Flux overlays | `kubernetes/apps/main/ai/litellm{,-operator,-pgvector}.yaml` |
