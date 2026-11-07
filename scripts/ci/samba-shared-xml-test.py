@@ -147,8 +147,10 @@ SAMBA_IMAGE = "ghcr.io/dockur/samba"
 # and a non-empty tag must be present. Hardcoding the version here would make a
 # routine Renovate bump turn this gate red for a reason that has nothing to do
 # with what the gate protects - the same defect that took
-# grafana-mcp-deploy-test.py down on `main` on 2026-09-06 (#1598).
-SAMBA_IMAGE_RE = re.compile(rf"^{re.escape(SAMBA_IMAGE)}:(?P<tag>[^:@\s]+)$")
+# grafana-mcp-deploy-test.py down on `main` on 2026-09-06 (#1598). Renovate
+# pins a digest onto the tag (`<tag>@sha256:<64 hex>`, pinDigests since #2411),
+# so the optional digest suffix is part of the accepted shape.
+SAMBA_IMAGE_RE = re.compile(rf"^{re.escape(SAMBA_IMAGE)}:(?P<tag>[^:@\s]+)(@sha256:[0-9a-f]{{64}})?$")
 
 # IPs the captain named as taken (must not be the samba pick).
 TAKEN_IPS = {
@@ -590,7 +592,7 @@ def test_samba_rendered_workload_and_service() -> None:
     image = app.get("image") or ""
     require(
         SAMBA_IMAGE_RE.match(image) is not None,
-        f"image must be {SAMBA_IMAGE}:<tag>, got {image}",
+        f"image must be {SAMBA_IMAGE}:<tag>[@sha256:<digest>], got {image}",
     )
     env = {e["name"]: e.get("value") for e in app.get("env") or [] if "name" in e}
     require(env.get("USER") == "hermes", "USER=hermes")
