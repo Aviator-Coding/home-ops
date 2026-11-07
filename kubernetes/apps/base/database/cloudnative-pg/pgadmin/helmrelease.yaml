@@ -30,7 +30,7 @@ spec:
           fix-permissions:
             image:
               repository: docker.io/library/busybox
-              tag: "1.38"
+              tag: "1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4"
             command:
               - sh
               - -c
@@ -45,7 +45,7 @@ spec:
           app:
             image:
               repository: dpage/pgadmin4
-              tag: "9.19"
+              tag: "9.19@sha256:3591b3d02910dcd817dec6fcaa681c278ba6966945283dd0ea0042731c330c83"
             command:
               - sh
               - -c

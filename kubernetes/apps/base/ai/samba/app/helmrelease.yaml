@@ -33,7 +33,7 @@ spec:
           chown-share:
             image:
               repository: docker.io/library/alpine
-              tag: "3.24"
+              tag: "3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a"
             command:
               - sh
               - -c
@@ -50,7 +50,7 @@ spec:
           app:
             image:
               repository: ghcr.io/dockur/samba
-              tag: "4.23.10"
+              tag: "4.23.10@sha256:2a0452a12b7a244a22f18d0f233101bb8d4952b5500ae263905e3b9dad3bf2ae"
             env:
               # The entrypoint creates this container-local account and its `smb`
               # group at exactly these ids, which is what `force user`/`force

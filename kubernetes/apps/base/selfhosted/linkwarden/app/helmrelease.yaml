@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: ghcr.io/linkwarden/linkwarden
-              tag: v2.16.3
+              tag: v2.16.3@sha256:0664c28a039bda8ffa6663389e8536b2fc717219e329f85b83faca7efed3b144
             env:
               NEXT_SHARP_PATH: /data/node_modules/sharp
               NEXTAUTH_URL: "https://links.${SECRET_DOMAIN}"

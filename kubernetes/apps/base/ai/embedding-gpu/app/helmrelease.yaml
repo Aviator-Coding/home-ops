@@ -41,7 +41,7 @@ spec:
             image:
               repository: ghcr.io/ggml-org/llama.cpp
               # Same tag as ai/vllm. Re-measure both workloads before the next bump.
-              tag: server-intel-b10820
+              tag: server-intel-b10820@sha256:35037559d99a90963d479b6e6e79764b138c76dc657341292aac6ad41d627c9f
             args:
               - -hf
               - Qwen/Qwen3-Embedding-0.6B-GGUF:f16

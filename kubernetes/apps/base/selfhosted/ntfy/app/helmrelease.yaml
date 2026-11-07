@@ -23,7 +23,7 @@ spec:
           app:
             image:
               repository: docker.io/binwiederhier/ntfy
-              tag: v2.37.2
+              tag: v2.37.2@sha256:1875ddcf815c8a3c981d6d78c67a93452d0abba79b1ab9520b1f5f5238902bd7
             args: ["serve"]
             resources:
               requests:
