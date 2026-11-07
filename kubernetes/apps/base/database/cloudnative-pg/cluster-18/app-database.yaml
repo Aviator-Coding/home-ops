@@ -1,0 +1,33 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/databaserole_v1.json
+# The `app` role and database that bootstrap.recovery names (CNPG defaults both to
+# `app`). The metrics exporter connects to that database and the primary's instance
+# manager sets that role's password from postgres-18-app on every loop. The cluster
+# was born by a monolith import, which creates neither, so without these the
+# exporter drops every cnpg_pg_* series (the backup and WAL alerts join on them)
+# and the instance reconcile loop errors. A recovery rebuild creates the same pair.
+# No app uses them. Skill `databases`.
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: app
+spec:
+  cluster:
+    name: postgres-18
+  name: app
+  login: true
+  passwordSecret:
+    name: postgres-18-app
+  databaseRoleReclaimPolicy: retain
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/postgresql.cnpg.io/database_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: app
+spec:
+  cluster:
+    name: postgres-18
+  name: app
+  owner: app
+  databaseReclaimPolicy: retain
