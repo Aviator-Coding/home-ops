@@ -1,0 +1,81 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: n8n
+spec:
+  # n8n runs user code (Code node, NODE_FUNCTION_ALLOW_BUILTIN "*") and HTTP Request nodes, so it is
+  # fenced both ways. A workflow that must reach a LAN host or an in-cluster Service needs its own
+  # egress rule here. The JS task runner talks to the broker over loopback, which policy never sees.
+  # Kopiur movers mount the claim in their own pods and never connect to n8n. Skill `networking`.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/controller: n8n
+  ingress:
+    # kubelet httpGet probes on :80 (/healthz, /healthz/readiness) come from the local host.
+    - fromEntities:
+        - host
+    # Editor and API route (envoy-internal) and the public webhook and OAuth callback route
+    # (envoy-external, also behind the Cloudflare tunnel). Gatus probes both routes.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-external
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+    # Prometheus scrape of /metrics (ServiceMonitor n8n, N8N_METRICS).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+    # DNS replies from CoreDNS. No toPorts on purpose: a reply lands on an ephemeral port, never 53.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+  egress:
+    # Name resolution through CoreDNS.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Database: DB_POSTGRESDB_HOST postgres-18-rw. All instances, so a switchover keeps working.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: database
+            cnpg.io/cluster: postgres-18
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # Public HTTPS (license, templates, community nodes, workflow API calls). Private, CGNAT and
+    # link-local ranges are cut out so a workflow cannot reach the LAN or the nodes.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
+            - 169.254.0.0/16
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
