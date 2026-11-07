@@ -48,7 +48,7 @@ spec:
       app.kubernetes.io/name: surrealdb
   interval: 30m
   timeout: 5m
-  path: "./kubernetes/components/kopiur/backup"
+  path: ./kubernetes/apps/base/database/surrealdb/backup
   prune: true
   sourceRef:
     kind: GitRepository
@@ -60,55 +60,6 @@ spec:
       namespace: system
     - name: surrealdb
       namespace: *namespace
-  # No `name:` on either patch target: both SnapshotPolicy objects this
-  # Kustomization renders (surrealdb-ceph, surrealdb-r2) need the identical
-  # hook, and an unqualified kind selector applies the same patch to both
-  # rather than duplicating the block twice.
-  patches:
-    - target:
-        kind: SnapshotPolicy
-      patch: |
-        - op: add
-          path: /spec/hooks
-          value:
-            beforeSnapshot:
-              # The real data. No continueOnFailure: if this export fails, the
-              # whole snapshot fails rather than silently falling back to a
-              # bare crash-consistent one.
-              - workloadExec:
-                  podSelector:
-                    matchLabels:
-                      app.kubernetes.io/name: surrealdb
-                  command:
-                    - /surreal
-                    - export
-                    - --endpoint
-                    - http://localhost:8000
-                    - --namespace
-                    - open_notebook
-                    - --database
-                    - production
-                    - /data/kopiur-hook-open_notebook-production.surql
-                  timeout: 2m
-              # The throw-away namespace. continueOnFailure: true so a deleted
-              # or renamed `test` database can never abort the production
-              # export above.
-              - workloadExec:
-                  podSelector:
-                    matchLabels:
-                      app.kubernetes.io/name: surrealdb
-                  command:
-                    - /surreal
-                    - export
-                    - --endpoint
-                    - http://localhost:8000
-                    - --namespace
-                    - test
-                    - --database
-                    - test
-                    - /data/kopiur-hook-test-test.surql
-                  timeout: 2m
-                  continueOnFailure: true
   postBuild:
     substituteFrom:
       - name: cluster-secrets

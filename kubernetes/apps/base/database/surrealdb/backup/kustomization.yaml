@@ -1,0 +1,57 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The shared kopiur backup bundle plus surrealdb's export hooks. The patch lives here, not on the
+# overlay: cluster-apps replaces an overlay's spec.patches (scripts/ci/overlay-patches-test.py).
+resources:
+  - ../../../../../components/kopiur/backup
+# No `name:` on either patch target: both SnapshotPolicy objects this
+# Kustomization renders (surrealdb-ceph, surrealdb-r2) need the identical
+# hook, and an unqualified kind selector applies the same patch to both
+# rather than duplicating the block twice.
+patches:
+  - target:
+      kind: SnapshotPolicy
+    patch: |
+      - op: add
+        path: /spec/hooks
+        value:
+          beforeSnapshot:
+            # The real data. No continueOnFailure: if this export fails, the
+            # whole snapshot fails rather than silently falling back to a
+            # bare crash-consistent one.
+            - workloadExec:
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: surrealdb
+                command:
+                  - /surreal
+                  - export
+                  - --endpoint
+                  - http://localhost:8000
+                  - --namespace
+                  - open_notebook
+                  - --database
+                  - production
+                  - /data/kopiur-hook-open_notebook-production.surql
+                timeout: 2m
+            # The throw-away namespace. continueOnFailure: true so a deleted
+            # or renamed `test` database can never abort the production
+            # export above.
+            - workloadExec:
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: surrealdb
+                command:
+                  - /surreal
+                  - export
+                  - --endpoint
+                  - http://localhost:8000
+                  - --namespace
+                  - test
+                  - --database
+                  - test
+                  - /data/kopiur-hook-test-test.surql
+                timeout: 2m
+                continueOnFailure: true

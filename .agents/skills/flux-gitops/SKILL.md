@@ -82,6 +82,15 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
     flux-operator, flux-instance, rook-ceph and rook-ceph-cluster
     HelmReleases; the CephCluster is rendered by the rook-ceph-cluster chart.
     To retire one of them on purpose, delete the HelmRelease by hand.
+13. **An overlay `spec.patches` never reaches the cluster.** `cluster-apps`
+    (`kubernetes/clusters/main/apps.yaml`) strategic-merges a defaults patch
+    onto every child Kustomization. The CRD's `patches` list has no merge key,
+    so the child's list is replaced by the HelmRelease defaults. flate renders
+    the overlay as written, so it stays green. Found 2026-11-06: the surrealdb
+    SnapshotPolicies had lost their export hooks and the litellm-pgvector
+    Database its `vector` extension. Wrap the shared path in a base
+    kustomization and patch there (`base/database/surrealdb/backup`,
+    `base/ai/litellm-pgvector/db`). Gate: `scripts/ci/overlay-patches-test.py`.
 
 ## Where things live
 

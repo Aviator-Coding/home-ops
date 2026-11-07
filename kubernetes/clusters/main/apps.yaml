@@ -18,6 +18,9 @@ spec:
     name: flux-system
     namespace: flux-system
   wait: false
+  # This merge REPLACES each child's spec.patches (the list has no merge key), so an
+  # overlay patch is silently dropped: put it in the base kustomization the child's
+  # path builds. Gate: scripts/ci/overlay-patches-test.py. Skill `flux-gitops`.
   patches:
     - # Add Kustomization defaults for all child Kustomizations
       patch: |-

@@ -98,6 +98,27 @@ KOPIUR_BACKUP_PATH = "kubernetes/components/kopiur/backup"
 # names it (component, path or the old operator app) is a half-revert.
 VOLSYNC_PATHS = ("components/volsync", "kubernetes/apps/base/system/volsync/app")
 
+
+def is_backup_path(path: str, backup_path: str = KOPIUR_BACKUP_PATH) -> bool:
+    """A Flux `path` that is the backup bundle, or a base kustomization wrapping it.
+
+    A wrapper (kubernetes/apps/base/database/surrealdb/backup) carries per-app
+    patches on the bundle, because cluster-apps replaces an overlay's
+    spec.patches (overlay-patches-test.py).
+    """
+    rel = path.strip().strip("./")
+    if rel == backup_path:
+        return True
+    kfile = REPO / rel / "kustomization.yaml"
+    if not rel or not kfile.is_file():
+        return False
+    doc = yaml.safe_load(kfile.read_text()) or {}
+    target = (REPO / backup_path).resolve()
+    return any(
+        isinstance(r, str) and (kfile.parent / r).resolve() == target
+        for r in doc.get("resources") or []
+    )
+
 # (namespace, claim) -> (uid, gid), measured live 2026-08-30.
 EXPECTED_IDENTITY: dict[tuple[str, str], tuple[str, str]] = {
     ("ai", "hermes"): ("10000", "10000"),
@@ -356,7 +377,7 @@ def onboarded() -> list[tuple[str, str, dict[str, str], dict[str, Any], Path]]:
         spec = d.get("spec") or {}
         comps = [c for c in (spec.get("components") or []) if isinstance(c, str)]
         via_component = any(c.rstrip("/").endswith(KOPIUR_COMPONENT_SUFFIX) for c in comps)
-        via_path = str(spec.get("path") or "").strip("./") == KOPIUR_BACKUP_PATH
+        via_path = is_backup_path(str(spec.get("path") or ""))
         if not (via_component or via_path):
             continue
         sub = {

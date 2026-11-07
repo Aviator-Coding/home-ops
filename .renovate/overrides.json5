@@ -51,6 +51,13 @@
       allowedVersions: "<5.9.0",
     },
     {
+      // 2.x is untested against the ToolHive vmcp gateway; lift this after a test. Skill `ai-stack`.
+      description: "Keep github-mcp-server on major 1",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/github/github-mcp-server"],
+      allowedVersions: "<2",
+    },
+    {
       // Negated regex excludes exactly v1.13.3 (PR #867). A bare <X.Y.Z ceiling goes silent once the tracked value passes it. This rule proposes; automerge is the separate rule in autoMerge.json5. Skill `renovate` references/versioning-traps.md.
       description: "Exclude Talos v1.13.3 only (permanent upgrade failure on talos-1, see #867) - not a version ceiling",
       matchPackageNames: [

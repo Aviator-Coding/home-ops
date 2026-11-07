@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The shared cnpg-database bundle plus the pgvector extension on this app's Database. The patch
+# lives here, not on the overlay: cluster-apps replaces an overlay's spec.patches
+# (scripts/ci/overlay-patches-test.py).
+resources:
+  - ../../../../../components/cnpg-database
+patches:
+  - target:
+      kind: Database
+    patch: |-
+      - op: add
+        path: /spec/extensions
+        value:
+          - name: vector
