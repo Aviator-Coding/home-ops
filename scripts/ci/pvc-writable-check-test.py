@@ -444,7 +444,7 @@ def test_skips_readonly_mount_and_skip_annotation(script: str) -> None:
 def test_skips_excluded_namespaces_without_exec(script: str) -> None:
     """rook-ceph/database/security are SKIP (namespace excluded) and never fail."""
     pods = [
-        pod("database", "postgres-17-1", claim="pg-data", mount="/var/lib/postgresql/data"),
+        pod("database", "postgres-18-1", claim="pg-data", mount="/var/lib/postgresql/data"),
         pod("rook-ceph", "rook-ceph-mon-a", claim="mon-a", mount="/var/lib/ceph"),
         pod("security", "vault-0", claim="vault", mount="/data"),
         pod("downloads", "ok-0", claim="ok", mount="/config"),
@@ -452,7 +452,7 @@ def test_skips_excluded_namespaces_without_exec(script: str) -> None:
     plan = {
         ("downloads", "ok-0", "app"): {"mode": "writable"},
         # Poison: if exec happens in excluded NS, treat as unwritable so we notice.
-        ("database", "postgres-17-1", "app"): {"mode": "unwritable"},
+        ("database", "postgres-18-1", "app"): {"mode": "unwritable"},
         ("rook-ceph", "rook-ceph-mon-a", "app"): {"mode": "unwritable"},
         ("security", "vault-0", "app"): {"mode": "unwritable"},
     }
