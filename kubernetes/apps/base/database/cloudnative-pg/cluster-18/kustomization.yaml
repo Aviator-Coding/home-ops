@@ -3,6 +3,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - ./app-database.yaml
   - ./cluster-18.yaml
   - ./gatus.yaml
   - ./objectstore.yaml

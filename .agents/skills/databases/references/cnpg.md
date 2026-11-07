@@ -101,6 +101,13 @@ and copies it to `cnpg_cluster`. Do not add
 `{regex: cluster, action: labeldrop}`. The bundled Grafana dashboard's
 Cluster variable reads `cluster`. Dropping it empties every panel.
 
+The exporter's default queries connect to the bootstrap's application database, which
+`bootstrap.recovery` defaults to `app` (owner `app`). postgres-18 was born by a monolith
+import that creates neither, so `cluster-18/app-database.yaml` declares both. Without them
+every `cnpg_pg_*` series is gone (`cnpg_errors_total` shows `database "app" does not
+exist`), the backup and WAL alerts join on nothing and stay silent, and the primary's
+instance reconcile fails on `role "app" does not exist`.
+
 Do not re-add the gnetId 20417 dashboard. It duplicated UID `cloudnative-pg`
 and locked Grafana's sidecar out of writes.
 
