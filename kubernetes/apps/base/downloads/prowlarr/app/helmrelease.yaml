@@ -28,15 +28,6 @@ spec:
             runAsNonRoot: true
             fsGroup: 3000
             fsGroupChangePolicy: OnRootMismatch
-        initContainers:
-          init-db:
-            image:
-              repository: ghcr.io/home-operations/postgres-init
-              tag: 18.6@sha256:87627baaddb0cabed4ebe033e75038e5c7b6b081c18e86514c99067179a90719
-            envFrom: &envFrom
-              - secretRef:
-                  name: prowlarr-secret
-
         containers:
           app:
             image:
@@ -50,7 +41,9 @@ spec:
               PROWLARR__LOG__LEVEL: info
               PROWLARR__SERVER__PORT: &port 9696
               PROWLARR__UPDATE__BRANCH: develop
-            envFrom: *envFrom
+            envFrom:
+              - secretRef:
+                  name: prowlarr-secret
             probes:
               liveness: &probes
                 enabled: true

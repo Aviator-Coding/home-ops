@@ -28,14 +28,6 @@ spec:
             fsGroupChangePolicy: "OnRootMismatch"
 
         initContainers:
-          init-db:
-            image:
-              repository: ghcr.io/home-operations/postgres-init
-              tag: 18.6@sha256:87627baaddb0cabed4ebe033e75038e5c7b6b081c18e86514c99067179a90719
-            envFrom: &envFrom
-              - secretRef:
-                  name: lidarr-secret
-
           init-dirs:
             image:
               repository: alpine
@@ -70,7 +62,9 @@ spec:
               LIDARR__LOG__LEVEL: info
               LIDARR__SERVER__PORT: &port 8080
               LIDARR__UPDATE__BRANCH: develop
-            envFrom: *envFrom
+            envFrom:
+              - secretRef:
+                  name: lidarr-secret
             probes:
               liveness: &probes
                 enabled: true
