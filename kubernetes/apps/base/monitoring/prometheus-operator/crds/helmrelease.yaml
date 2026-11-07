@@ -9,3 +9,9 @@ spec:
   chartRef:
     kind: OCIRepository
     name: prometheus-operator-crds
+  values:
+    crds:
+      # Keep the CRDs on a HelmRelease uninstall: deleting them deletes every
+      # ServiceMonitor, PodMonitor and PrometheusRule in the cluster.
+      annotations:
+        helm.sh/resource-policy: keep
