@@ -1,0 +1,67 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: tdarr
+spec:
+  # The server runs auth "false" because the external Windows node cannot take a key from Git
+  # (helmrelease.yaml), so :8265 (UI and API) and :8266 (node protocol, which also serves the API)
+  # are open to anything that can reach them. This fence is the only gate. Ingress only: plugin
+  # downloads and the NFS mount stay as they are. The tdarr-node pod listens on nothing and is
+  # not selected. Skill `networking`. The server connects to no in-cluster Service but CoreDNS, so
+  # it needs no other cilium/cilium#47913 reply rule. A new outbound in-cluster peer needs one.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: tdarr
+      app.kubernetes.io/instance: tdarr
+      app.kubernetes.io/controller: tdarr
+  ingress:
+    # kubelet httpGet probes on :8265 (/api/v2/status) come from the local host.
+    - fromEntities:
+        - host
+    # The tdarr HTTPRoute (envoy-internal only). Gatus auto-discovers and probes it.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports:
+            - port: "8265"
+              protocol: TCP
+    # In-cluster worker (tdarr-node on talos-3): node protocol on :8266, and its readiness and
+    # startup probes wget /api/v2/get-nodes on :8265 from inside that pod.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: media
+            app.kubernetes.io/name: tdarr
+            app.kubernetes.io/controller: tdarr-node
+      toPorts:
+        - ports:
+            - port: "8265"
+              protocol: TCP
+            - port: "8266"
+              protocol: TCP
+    # Gatus "Tdarr Server" tcp check on tdarr.media.svc:8266 (static entry, not through Envoy).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: gatus
+      toPorts:
+        - ports:
+            - port: "8266"
+              protocol: TCP
+    # External Windows GPU node through tdarr-node-lb (10.50.0.54:8266). DSR keeps its LAN source
+    # address. HOLD: the node's /32 is not in Git; replace this `world` entry with
+    # `fromCIDR: [<node-ip>/32]` before merging, or LAN-wide :8266 access stays open.
+    - fromEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "8266"
+              protocol: TCP
+    # DNS replies from CoreDNS. No toPorts on purpose: a reply lands on an ephemeral port, never 53.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
