@@ -47,6 +47,19 @@ spec:
       replicas: 2
       # 2 cores, allow 1 unavailable during operator-managed rolling restarts.
       minAvailable: 1
+      # Required: two cores have no quorum, so both on one node is a broker outage on one drain.
+      # matchLabelKeys scopes the rule to one revision: the operator rolls cores as a new
+      # StatefulSet beside the old one, and old-revision pods must not block the new ones.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  apps.emqx.io/instance: emqx
+                  apps.emqx.io/db-role: core
+              matchLabelKeys:
+                - apps.emqx.io/pod-template-hash
+              topologyKey: kubernetes.io/hostname
       resources:
         requests:
           cpu: 250m
