@@ -24,6 +24,10 @@ spec:
       namespace: downloads
     - name: onepassword-store
       namespace: security
+    - name: keda
+      namespace: monitoring
+  components:
+    - ../../../../../components/keda/nfs-scaler
   postBuild:
     substituteFrom:
       - name: cluster-secrets

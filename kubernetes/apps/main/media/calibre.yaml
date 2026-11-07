@@ -10,6 +10,8 @@ spec:
   dependsOn:
     - name: kopiur-repository
       namespace: system
+    - name: keda
+      namespace: monitoring
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
@@ -17,6 +19,7 @@ spec:
   components:
     # Proof: proof-ledger.md row 18.
     - ../../../../../components/kopiur/pvc
+    - ../../../../../components/keda/nfs-scaler
   prune: true
   sourceRef:
     kind: GitRepository

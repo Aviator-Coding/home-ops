@@ -13,7 +13,10 @@ spec:
     # Proof: proof-ledger.md row 7.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
+    - ../../../../../components/keda/nfs-scaler
   dependsOn:
+    - name: keda
+      namespace: monitoring
     - name: lidarr-db
       namespace: downloads
     - name: downloads-pvc

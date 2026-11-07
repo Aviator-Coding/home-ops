@@ -282,9 +282,16 @@ RETIRED: dict[str, Retired] = {
 # Components a retired claim Kustomization may carry besides the backup ones. Each
 # renders neither a PersistentVolumeClaim nor a backup object, so it cannot
 # collide with or replace the claim. Keyed by claim so the exemption cannot
-# spread to another overlay: paperless-ngx needs its Dragonfly cache.
+# spread to another overlay: paperless-ngx needs its Dragonfly cache; the NAS NFS
+# consumers carry the keda nfs-scaler ScaledObject.
+NFS_SCALER_COMPONENT = "../../../../../components/keda/nfs-scaler"
 NON_BACKUP_COMPONENTS = {
     "selfhosted/paperless-ngx": {"../../../../../components/dragonfly"},
+    "downloads/bazarr": {NFS_SCALER_COMPONENT},
+    "downloads/lidarr": {NFS_SCALER_COMPONENT},
+    "downloads/radarr": {NFS_SCALER_COMPONENT},
+    "downloads/sonarr": {NFS_SCALER_COMPONENT},
+    "media/calibre-web-automated": {NFS_SCALER_COMPONENT},
 }
 
 # Restore-proof finding 2 / the 2026-09-02 cache gate: an r2 restore needs
