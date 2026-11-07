@@ -89,7 +89,7 @@ Comments that name an older tag are stale.
     `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/README.md`.
 16. **Full-cluster restore from r2** is
     [full-cluster-restore-r2.md](references/full-cluster-restore-r2.md). Do not invent a
-    second procedure. Three claims have no populator path and are hand-restored;
+    second procedure. Six claims have no populator path and are hand-restored;
     that runbook names them.
 17. **The retired VolSync repositories outlive the operator.** 51 restic
     repositories sit in the `volsync` buckets (ceph, MinIO, R2). The ceph one is

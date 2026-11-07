@@ -82,6 +82,14 @@
       automerge: false,
     },
     {
+      // MUST stay after the blanket rules. hermes state.db and the opencode session DB migrate on version bumps, and #1768 (hermes) and #2374 (opencode) merged unattended. Digest refreshes stay automerged. Skill `renovate`.
+      description: "Never auto merge hermes-agent or opencode minor/patch versions - a version bump migrates the app's on-disk database",
+      matchDatasources: ["docker"],
+      matchPackageNames: ["docker.io/nousresearch/hermes-agent", "ghcr.io/joryirving/opencode"],
+      matchUpdateTypes: ["minor", "patch"],
+      automerge: false,
+    },
+    {
       // MUST stay after the three blanket automerge rules. A merge of talosupgrade.yaml powercycles nodes, and docker isStable treats -alpha as a minor. Skill `renovate` references/versioning-traps.md.
       description: "Never auto merge Talos - node upgrades are attended captain operations, and ghcr.io/siderolabs/installer's docker versioning does not treat -alpha/-beta/-rc suffixes as unstable",
       matchPackageNames: [

@@ -97,10 +97,10 @@ Cluster variable reads `cluster`. Dropping it empties every panel.
 Do not re-add the gnetId 20417 dashboard. It duplicated UID `cloudnative-pg`
 and locked Grafana's sidecar out of writes.
 
-The `gatus.io/enabled` ConfigMap under `cluster-17/` is not loaded by Gatus.
+The `gatus.io/enabled` ConfigMap under `cluster-18/` is not loaded by Gatus.
 Skill `observability`. Do not treat that file as a live check.
 
-Backup-age rules in `cluster-17/prometheusrule.yaml`: standbys export
+Backup-age rules in `cluster-18/prometheusrule.yaml`: standbys export
 `cnpg_collector_last_available_backup_timestamp` as 0, so require
 `timestamp > 0` joined to `cnpg_pg_replication_in_recovery == 0`. A primary
 that reports 0 or drops the series is the `*TimestampAbsent` pair
