@@ -1,0 +1,47 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: paperless-ngx
+spec:
+  # Ingress fence only: egress (postgres-18, dragonfly, DNS) stays open. Skill `networking`.
+  # Each of those peers is also admitted on ingress with no toPorts, for its replies (cilium/cilium#47913).
+  # The controller label keeps the operator-managed paperless-ngx-dragonfly pods out of this selector.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: paperless-ngx
+      app.kubernetes.io/controller: paperless-ngx
+  ingress:
+    # kubelet httpGet probes on :8000 come from the local host.
+    - fromEntities:
+        - host
+    # The docs HTTPRoute (envoy-internal only). Gatus probes through this route too.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    # Session and task broker (PAPERLESS_REDIS paperless-ngx-dragonfly:6379). Both replicas, so a
+    # failover keeps working. No toPorts: a same-node Service reply arrives with the ClusterIP as
+    # source after reverse NAT and is re-checked here. Skill `networking` references/dns-ownership.md.
+    # reply traffic: cilium/cilium#47913, remove toPorts-free rule when fixed
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: selfhosted
+            app: paperless-ngx-dragonfly
+            app.kubernetes.io/part-of: dragonfly
+    # Database (PAPERLESS_DBHOST postgres-18-rw). All instances, so a switchover keeps working.
+    # reply traffic: cilium/cilium#47913, remove toPorts-free rule when fixed
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: database
+            cnpg.io/cluster: postgres-18
+    # DNS replies from CoreDNS. No toPorts on purpose: a reply lands on an ephemeral port, never 53.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
