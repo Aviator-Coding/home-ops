@@ -6,6 +6,7 @@
       // helm-values and kubernetes managers only: the annotated-dependency regex has no currentDigest capture (it would rewrite tuppr's version: field),
       // and flux chart refs are OCIRepository tags. kubernetes/** only, so Talos, mise and CI images are untouched.
       // rsshub and browserless/chrome float on latest with their own digest rule. quay.io/ceph/ceph: a CephCluster image change restarts every Ceph daemon, pin it with an attended Ceph bump.
+      // Verified 2026-11-07: operator CRs (LiteLLMProxy, MCPServer, EMQX, Dragonfly, Envoy) accept digests, pin PR #2411.
       // Adding a digest changes the pod spec, so each newly pinned workload rolls once. Skill `renovate`.
       description: "Pin container image digests in kubernetes/**",
       matchDatasources: ["docker"],
