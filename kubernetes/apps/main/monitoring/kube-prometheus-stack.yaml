@@ -10,6 +10,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  dependsOn:
+    - name: prometheus-operator-crds
+      namespace: monitoring
   interval: 30m
   timeout: 5m
   path: "./kubernetes/apps/base/monitoring/kube-prometheus-stack/app"

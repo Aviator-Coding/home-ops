@@ -11,9 +11,29 @@ spec:
       app.kubernetes.io/name: *app
   dependsOn:
     - name: certificates-import
+  # Controller first, then both Gateways Programmed (address assigned, listeners
+  # pushed to the proxies). wait stays false so these entries are honoured.
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: envoy-gateway
+      namespace: *namespace
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      name: envoy-external
+      namespace: *namespace
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      name: envoy-internal
+      namespace: *namespace
+  healthCheckExprs:
+    - apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      current: status.conditions.filter(e, e.type == 'Programmed').all(e, e.status == 'True')
   interval: 1h
   path: ./kubernetes/apps/base/network/envoy-gateway/app
   prune: true
+  retryInterval: 2m
   postBuild:
     substituteFrom:
       - name: cluster-secrets
@@ -23,4 +43,5 @@ spec:
     name: flux-system
     namespace: flux-system
   targetNamespace: *namespace
+  timeout: 5m
   wait: false

@@ -9,6 +9,11 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  # No ExternalSecret here, but postBuild substitutes cluster-secrets; on a cold
+  # bootstrap wait for the secrets operator rather than fail the first build.
+  dependsOn:
+    - name: external-secrets
+      namespace: security
   healthChecks:
     - apiVersion: apps/v1
       kind: Deployment
@@ -17,6 +22,7 @@ spec:
   interval: 1h
   path: ./kubernetes/apps/base/flux-system/konflate/app
   prune: true
+  retryInterval: 2m
   postBuild:
     substituteFrom:
       - name: cluster-secrets

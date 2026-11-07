@@ -9,6 +9,9 @@ spec:
   commonMetadata:
     labels:
       app.kubernetes.io/name: *app
+  dependsOn:
+    - name: onepassword-store
+      namespace: security
   interval: 1h
   path: ./kubernetes/apps/base/network/certificates/import
   prune: true
@@ -35,6 +38,9 @@ spec:
       app.kubernetes.io/name: *app
   dependsOn:
     - name: certificates-import
+    # Owns the Certificate CRD and the issuer the exported certificates use.
+    - name: cert-manager
+      namespace: cert-manager
   interval: 1h
   path: ./kubernetes/apps/base/network/certificates/export
   prune: true
