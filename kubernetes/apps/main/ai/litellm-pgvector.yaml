@@ -57,7 +57,7 @@ spec:
       app.kubernetes.io/name: litellm-pgvector
   interval: 30m
   timeout: 5m
-  path: ./kubernetes/components/cnpg-database
+  path: ./kubernetes/apps/base/ai/litellm-pgvector/db
   prune: true
   sourceRef:
     kind: GitRepository
@@ -68,14 +68,6 @@ spec:
       namespace: database
     - name: onepassword-store
       namespace: security
-  patches:
-    - target:
-        kind: Database
-      patch: |-
-        - op: add
-          path: /spec/extensions
-          value:
-            - name: vector
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
       kind: DatabaseRole

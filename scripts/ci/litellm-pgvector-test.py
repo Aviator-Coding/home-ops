@@ -44,6 +44,7 @@ APP_DIR = ROOT / "kubernetes" / "apps" / "base" / "ai" / "litellm-pgvector" / "a
 HELMRELEASE = APP_DIR / "helmrelease.yaml"
 SCHEMA_SQL = APP_DIR / "resources" / "schema.sql"
 OVERLAY = ROOT / "kubernetes" / "apps" / "main" / "ai" / "litellm-pgvector.yaml"
+DB_WRAPPER = ROOT / "kubernetes" / "apps" / "base" / "ai" / "litellm-pgvector" / "db" / "kustomization.yaml"
 OVERLAY_KUSTOMIZATION = ROOT / "kubernetes" / "apps" / "main" / "ai" / "kustomization.yaml"
 LITELLM_DIR = ROOT / "kubernetes" / "apps" / "base" / "ai" / "litellm" / "app"
 PROXY = LITELLM_DIR / "litellmproxy.yaml"
@@ -314,6 +315,66 @@ def test_overlay_is_wired() -> dict[str, Any]:
     return {"dependsOn": sorted(deps)}
 
 
+# --- vector extension ----------------------------------------------------
+
+CNPG_COMPONENT = ROOT / "kubernetes" / "components" / "cnpg-database"
+
+
+def check_vector_extension(db_ks: dict[str, Any], wrapper: dict[str, Any], wrapper_dir: Path) -> dict[str, Any]:
+    """The `vector` extension rides a patch in the base wrapper the -db Kustomization
+    builds. An overlay spec.patches is replaced by cluster-apps' defaults patch and
+    never reaches the cluster (2026-11-06: the live Database had no extensions)."""
+    require("patches" not in db_ks["spec"], "litellm-pgvector-db overlay declares spec.patches; cluster-apps drops them")
+    path = db_ks["spec"]["path"].removeprefix("./")
+    require((ROOT / path).resolve() == wrapper_dir.resolve(), f"litellm-pgvector-db path {path!r} is not the base wrapper")
+    resources = [(wrapper_dir / r).resolve() for r in wrapper.get("resources", [])]
+    require(CNPG_COMPONENT.resolve() in resources, "the wrapper must build components/cnpg-database")
+    for p in wrapper.get("patches") or []:
+        if (p.get("target") or {}).get("kind") != "Database":
+            continue
+        for op in yaml.safe_load(p.get("patch", "")) or []:
+            if op.get("path") == "/spec/extensions" and {"name": "vector"} in (op.get("value") or []):
+                return {"path": path, "extension": "vector"}
+    raise Failure("no Database patch in the wrapper adds /spec/extensions [{name: vector}]")
+
+
+def db_kustomization() -> dict[str, Any]:
+    named = [
+        d for d in load_docs(OVERLAY)
+        if d.get("kind") == "Kustomization" and d["metadata"]["name"] == "litellm-pgvector-db"
+    ]
+    require(len(named) == 1, f"expected one Kustomization litellm-pgvector-db, found {len(named)}")
+    return named[0]
+
+
+def test_database_has_vector_extension() -> dict[str, Any]:
+    return check_vector_extension(db_kustomization(), yaml.safe_load(DB_WRAPPER.read_text()), DB_WRAPPER.parent)
+
+
+def test_vector_checker_refuses_overlay_patch() -> dict[str, Any]:
+    ks = db_kustomization()
+    wrapper = yaml.safe_load(DB_WRAPPER.read_text())
+    on_overlay = copy.deepcopy(ks)
+    on_overlay["spec"]["patches"] = wrapper["patches"]
+    bare_path = copy.deepcopy(ks)
+    bare_path["spec"]["path"] = "./kubernetes/components/cnpg-database"
+    no_patch = copy.deepcopy(wrapper)
+    no_patch["patches"] = []
+    refusals = []
+    for label, args in {
+        "patch on the overlay": (on_overlay, wrapper),
+        "path at the bare component": (bare_path, wrapper),
+        "wrapper without the patch": (ks, no_patch),
+    }.items():
+        try:
+            check_vector_extension(args[0], args[1], DB_WRAPPER.parent)
+        except Failure:
+            refusals.append(label)
+        else:
+            raise Failure(f"checker accepted {label}")
+    return {"refused": refusals}
+
+
 # --- db-init environment -------------------------------------------------
 
 DBINIT = APP_DIR / "dbinit.yaml"
@@ -396,6 +457,8 @@ def main() -> int:
         test_registry_is_private_seeded_and_reachable,
         test_registry_checker_refuses_fallback_name,
         test_overlay_is_wired,
+        test_database_has_vector_extension,
+        test_vector_checker_refuses_overlay_patch,
         test_postgres_init_gets_no_libpq_env,
         test_dbinit_env_checker_refuses_the_first_deploy_bug,
     ]
