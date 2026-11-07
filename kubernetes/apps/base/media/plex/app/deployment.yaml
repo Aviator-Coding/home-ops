@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: exporter
-          image: ghcr.io/axsuul/plex-media-server-exporter:2.1.0
+          image: ghcr.io/axsuul/plex-media-server-exporter:2.1.0@sha256:ab89d0ba039e4ea70fe5ee087b89c11f36b2eb30b4b85792c0caf60d5e4b2cd1
           env:
             - name: PORT
               value: "9594"

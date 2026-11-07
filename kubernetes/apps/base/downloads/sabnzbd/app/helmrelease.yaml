@@ -38,7 +38,7 @@ spec:
           init-dirs:
             image:
               repository: alpine
-              tag: 3.24.4
+              tag: 3.24.4@sha256:93b41ef40b1677fce8fcc64ff4af09daddfacf5040afde618bc46c1e2d1cc7d4
             command:
               - sh
               - -c
@@ -67,7 +67,7 @@ spec:
           app:
             image:
               repository: ghcr.io/home-operations/sabnzbd
-              tag: 5.1.3
+              tag: 5.1.3@sha256:c89b0322721c3eba47221e5f916505e7e742684651f73c5215717340b6b5402f
             env:
               SABNZBD__PORT: &port 8080
               SABNZBD__HOST_WHITELIST_ENTRIES: >-

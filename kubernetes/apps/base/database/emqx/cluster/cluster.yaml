@@ -6,7 +6,7 @@ metadata:
   name: emqx
 spec:
   # renovate: datasource=docker depName=public.ecr.aws/emqx/emqx
-  image: public.ecr.aws/emqx/emqx:5.8.9
+  image: public.ecr.aws/emqx/emqx:5.8.9@sha256:35b46f7aa7a0d51f3959e4344221ac5ec7f948b03e43099286b6c40a07bb393b
   config:
     data: |
       authentication {

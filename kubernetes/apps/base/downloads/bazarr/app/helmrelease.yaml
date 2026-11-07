@@ -37,7 +37,7 @@ spec:
             # refuses to start unless /run is owned by the UID it runs as.
             image:
               repository: docker.io/library/busybox
-              tag: "1.38"
+              tag: "1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4"
             command:
               - sh
               - -c
@@ -55,7 +55,7 @@ spec:
               # instead of home-operations' Python 3.14 build, which upstream Bazarr
               # does not support and which hangs before binding its HTTP port.
               repository: ghcr.io/linuxserver/bazarr
-              tag: version-v1.6.0
+              tag: version-v1.6.0@sha256:84b6f05a7a4194fafe5a0bec062d32f6ae9ea74db33d43d678cb9a3191f31c24
               digest: sha256:ac284d3fda9ee7da8b15197dc51f0d7a2a1da98549bee99a3d924d3e94a5e7ed
             env:
               # Tell the s6-overlay init to skip its root-only usermod/chown steps:

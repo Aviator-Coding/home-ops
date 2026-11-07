@@ -117,7 +117,7 @@ spec:
                 readOnly: true
           - name: dind
             # renovate: datasource=docker depName=docker
-            image: docker:29-dind
+            image: docker:29-dind@sha256:08a98015fce594af7c382883bea080ea206de74402a95da9dc52b6428c8cd121
             securityContext:
               privileged: true
             env:
