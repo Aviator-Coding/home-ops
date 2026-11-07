@@ -67,9 +67,10 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
     which mirrors the preset's annotated-dependency regex. PRs still come from
     the `app/mortyops` GitHub App; the preset does not set the author.
 
-13. **`pinDigests` is on for docker images in `kubernetes/**`** (helm-values and
-    kubernetes managers only; rsshub, browserless/chrome and `quay.io/ceph/ceph`
-    excluded, rule in `overrides.json5`). Pins land in one "Pin Dependencies"
+13. **`pinDigests` is on for docker images in `kubernetes/**/helmrelease.yaml`**
+    (helm-values manager only; operator CRs and plain manifests stay tag-only
+    until each operator is verified to accept a digest; rsshub,
+    browserless/chrome and `quay.io/ceph/ceph` excluded, rule in `overrides.json5`). Pins land in one "Pin Dependencies"
     PR and automerge as `pinDigest`. A pin changes the pod spec, so each
     newly pinned workload rolls once with the same image.
 
