@@ -1,0 +1,72 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 K8TZ \u2022 WEBHOOK",
+    "title": "k8tz",
+    "tagline": "A mutating webhook that gives every pod the America/New_York timezone, so logs and cron schedules agree across the cluster.",
+    "chips": [
+      "AMERICA/NEW_YORK",
+      "2 REPLICAS \u2022 PDB",
+      "CRON TIMEZONE ON",
+      "SELF-SIGNED PKI"
+    ],
+    "icon": "clock",
+    "status": "RECONCILED BY FLUX \u2022 system-controller/k8tz"
+  },
+  "art": {
+    "about": "a webhook that stamps a timezone onto every new pod",
+    "title": "How k8tz sets the timezone",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One webhook, one timezone, every namespace but its own",
+    "steps": [
+      {
+        "icon": "webhook",
+        "title": "Admit",
+        "text": "On each pod create, the webhook adds an init container that copies zone data and sets TZ, so processes run on New York time.",
+        "scene": "a webhook gate stamping a clock onto a new pod"
+      },
+      {
+        "icon": "ban",
+        "title": "Exempt",
+        "text": "The webhook skips its own namespace, system-controller, by name, so the controller itself never runs through it.",
+        "scene": "a pod outside a fenced ring"
+      },
+      {
+        "icon": "calendar-clock",
+        "title": "Schedule",
+        "text": "CronJobs get spec.timeZone, so a schedule written as 03:00 runs at 03:00 local time, not UTC.",
+        "scene": "a calendar with a local-time clock face"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Serve",
+        "text": "Two replicas sit behind a PDB and a hostname spread. Every container has request equal to limit.",
+        "scene": "two towers behind a shield"
+      },
+      {
+        "icon": "badge-check",
+        "title": "Trust",
+        "text": "cert-manager issues the webhook serving certificate from a self-signed Issuer, so the API server can call it over TLS.",
+        "scene": "a seal on a certificate card"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "webhook replicas"
+      },
+      {
+        "value": "10 S",
+        "label": "webhook timeout"
+      },
+      {
+        "value": "FAIL",
+        "label": "failurePolicy: pod create blocks if down"
+      }
+    ]
+  }
+}

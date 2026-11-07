@@ -1,0 +1,71 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 USENET",
+    "title": "sabnzbd",
+    "tagline": "Downloads NZBs from Usenet, repairs and unpacks them, and leaves each finished job in the category folder the *arr apps import from.",
+    "chips": [
+      "USENET ONLY",
+      "PAR2 \u2022 UNRAR",
+      "ARTICLES ON CEPH BLOCK",
+      "KOPIUR \u2022 CEPH + R2"
+    ],
+    "icon": "download",
+    "status": "RECONCILED BY FLUX \u2022 downloads/sabnzbd"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From an NZB to a finished download",
+    "steps": [
+      {
+        "icon": "inbox",
+        "title": "Queue",
+        "text": "Radarr, Sonarr, Shelfmark or a manual add sends an NZB to the SABnzbd API. The client settings live in the config claim.",
+        "scene": "an inbox receiving a paper packet"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Fetch",
+        "text": "Articles land in sabnzbd-incomplete, a 1.5 TB ceph-block scratch volume, which keeps the thousands of small article files off CephFS.",
+        "scene": "data fragments flowing into a scratch tray"
+      },
+      {
+        "icon": "wrench",
+        "title": "Repair",
+        "text": "par2 verifies and repairs the set, and unrar or 7zip extracts it. Large UHD remuxes need the full 10 GB memory limit.",
+        "scene": "a repair kit patching a torn archive"
+      },
+      {
+        "icon": "folder-check",
+        "title": "Complete",
+        "text": "The finished job moves into usenet/complete/<category> on shared-downloads, the CephFS RWX claim the *arr apps read.",
+        "scene": "a labelled folder arriving on a shared shelf"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Back up",
+        "text": "kopiur snapshots sabnzbd-config to Ceph every four hours and to R2 daily. The incomplete volume is scratch and is not backed up.",
+        "scene": "a shield over a cube and a cloud"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1.5 TB",
+        "label": "article scratch on ceph-block"
+      },
+      {
+        "value": "10 GB",
+        "label": "memory limit for post-processing"
+      },
+      {
+        "value": "4 CPU",
+        "label": "limit, so repair is not throttled"
+      }
+    ]
+  },
+  "art": {
+    "about": "how a Usenet download is repaired, extracted and filed by SABnzbd",
+    "title": "How SABnzbd turns an NZB into a file",
+    "model": "gpt",
+    "subject": ""
+  }
+}

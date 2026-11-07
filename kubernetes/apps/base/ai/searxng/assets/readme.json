@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 METASEARCH",
+    "title": "searxng",
+    "tagline": "A private metasearch backend that Hermes calls for web search, with a rate limiter and no public listener.",
+    "chips": [
+      "HERMES BACKEND",
+      "4 X 2 UWSGI",
+      "DRAGONFLY LIMITER",
+      "INTERNAL ONLY"
+    ],
+    "icon": "search",
+    "status": "RECONCILED BY FLUX \u2022 ai/searxng"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One query fans out, one limiter holds the door",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Secret",
+        "text": "The ExternalSecret renders SEARXNG_SECRET, the instance signing key, from 1Password item searxng into the container environment.",
+        "scene": "a sealed key placed into a slot"
+      },
+      {
+        "icon": "file-cog",
+        "title": "Settings",
+        "text": "A ConfigMap mounts settings.yml and limiter.toml read-only. The limiter is on, the image proxy is on and public instance mode is off.",
+        "scene": "a settings panel with plain toggle switches, no text"
+      },
+      {
+        "icon": "search",
+        "title": "Query",
+        "text": "uWSGI runs 4 workers with 2 threads each on port 8080. Each query fans out to the enabled engines and merges the results.",
+        "scene": "one beam splitting into five plain hexagon nodes, no letters, no logos"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Limit",
+        "text": "The limiter keeps its counters in Dragonfly, through SEARXNG_REDIS_URL. Requests from the LAN ranges are passed through, and bot checks cover everything else.",
+        "scene": "a turnstile gate with a glowing counter panel, no digits"
+      },
+      {
+        "icon": "plug",
+        "title": "Serve",
+        "text": "Hermes calls searxng.ai.svc on port 8080. People reach the UI on envoy-internal at the search subdomain, and Gatus checks /stats.",
+        "scene": "a search bar plugged into a cable"
+      }
+    ],
+    "facts": [
+      {
+        "value": "8080",
+        "label": "HTTP port"
+      },
+      {
+        "value": "4 X 2",
+        "label": "uWSGI workers, threads"
+      },
+      {
+        "value": "2 GI",
+        "label": "memory limit"
+      },
+      {
+        "value": "1",
+        "label": "replica"
+      }
+    ]
+  },
+  "art": {
+    "about": "a private metasearch service that fans a query out to engines, with a rate limiter in front",
+    "title": "How searxng answers one query",
+    "model": "gpt",
+    "subject": ""
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 METRICS \u2022 KUBE-STATE",
+    "title": "kube-state-metrics",
+    "tagline": "Turns the Kubernetes API into Prometheus series: pod phases, restarts, failed Jobs and extended node resources.",
+    "chips": [
+      "LIST \u2022 WATCH",
+      "HONOR LABELS",
+      "SELF METRICS :8081",
+      "JOB \u2022 KSM"
+    ],
+    "icon": "list-tree",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/kube-state-metrics"
+  },
+  "art": {
+    "about": "how kube-state-metrics turns API objects into series",
+    "title": "How kube-state-metrics reads the API",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From an API object to a series",
+    "steps": [
+      {
+        "icon": "eye",
+        "title": "Watch",
+        "text": "The Deployment lists and watches the API server for the object kinds it supports by default, cluster-wide.",
+        "scene": "an eye over a stack of object cards"
+      },
+      {
+        "icon": "sigma",
+        "title": "Count",
+        "text": "Each object becomes gauge or info series, such as kube_pod_status_phase or kube_node_status_allocatable.",
+        "scene": "series of tally marks on a board"
+      },
+      {
+        "icon": "activity",
+        "title": "Scrape",
+        "text": "Prometheus scrapes the 8080 port through a ServiceMonitor whose job is kube-state-metrics. Honored labels keep each object's own namespace.",
+        "scene": "a probe drawing data from a grid of cards"
+      },
+      {
+        "icon": "heart-pulse",
+        "title": "Self",
+        "text": "Its own health is on port 8081: list and watch errors. The chart's KubeStateMetrics rules read those series.",
+        "scene": "a heartbeat trace on a small panel"
+      }
+    ],
+    "facts": [
+      {
+        "value": "8080",
+        "label": "object metrics port"
+      },
+      {
+        "value": "8081",
+        "label": "self-telemetry port"
+      }
+    ]
+  }
+}

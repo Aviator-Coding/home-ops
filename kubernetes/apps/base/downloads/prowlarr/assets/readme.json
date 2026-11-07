@@ -1,0 +1,69 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 PROWLARR",
+    "title": "prowlarr",
+    "tagline": "Central Usenet indexer manager: one set of indexers, synced to every *arr app, on its own PostgreSQL 18 database.",
+    "chips": [
+      "USENET ONLY",
+      "POSTGRES 18",
+      "KOPIUR BACKUP",
+      "INTERNAL ONLY"
+    ],
+    "icon": "search",
+    "status": "RECONCILED BY FLUX \u2022 downloads/prowlarr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Indexers defined once, shared everywhere",
+    "steps": [
+      {
+        "icon": "database",
+        "title": "Database",
+        "text": "The prowlarr-db Kustomization creates role and database prowlarr on the shared postgres-18 Cluster. The app's settings and indexers live there.",
+        "scene": "a database cylinder with a labelled drawer"
+      },
+      {
+        "icon": "key-round",
+        "title": "Secret",
+        "text": "ExternalSecret prowlarr-secret carries the database settings and the API key from the 1Password items prowlarr and cloudnative-pg.",
+        "scene": "a key being cut from a vault blank"
+      },
+      {
+        "icon": "layers",
+        "title": "Index",
+        "text": "Prowlarr queries the Usenet indexers you configured and hands results to the *arr apps. Torrent indexers are not configured, by decision.",
+        "scene": "a hub with cyan cables fanning out to four app nodes"
+      },
+      {
+        "icon": "archive",
+        "title": "Keep",
+        "text": "The 5Gi prowlarr-config claim is backed up by kopiur to Ceph and R2. Backups run as UID 3002 and GID 3000.",
+        "scene": "an indexer card sealed in an archive box"
+      }
+    ],
+    "facts": [
+      {
+        "value": "PG 18",
+        "label": "shared CNPG cluster"
+      },
+      {
+        "value": "5 GI",
+        "label": "config claim, kopiur"
+      },
+      {
+        "value": "9696",
+        "label": "HTTP port"
+      },
+      {
+        "value": "3002",
+        "label": "runtime UID"
+      }
+    ]
+  },
+  "art": {
+    "about": "an indexer manager that holds Usenet indexers once and syncs them to several downstream apps",
+    "title": "How Prowlarr shares indexers",
+    "model": "gpt",
+    "subject": ""
+  }
+}

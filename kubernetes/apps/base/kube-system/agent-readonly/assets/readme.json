@@ -1,0 +1,55 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 RBAC",
+    "title": "agent-readonly",
+    "tagline": "The read-only identity agent sessions use to inspect the cluster: the built-in view role, plus cluster-scoped and infra CRD reads, with no Secrets.",
+    "chips": [
+      "READ VERBS ONLY",
+      "NO SECRETS",
+      "NO EXEC",
+      "TOKEN MINTED OUT OF BAND"
+    ],
+    "icon": "eye",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/agent-readonly"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One identity, two read-only grants",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Identity",
+        "text": "A ServiceAccount named agent-readonly in kube-system. It has no Secret access and no pod exec rights.",
+        "scene": "a badge card on a neutral pedestal"
+      },
+      {
+        "icon": "eye",
+        "title": "View",
+        "text": "A ClusterRoleBinding attaches the built-in view role. That covers namespaced reads, and view leaves Secrets out.",
+        "scene": "a lens over a row of namespace blocks"
+      },
+      {
+        "icon": "layers-3",
+        "title": "Extras",
+        "text": "agent-readonly-extra adds get, list and watch on nodes, PVs, CRDs and the infra API groups the agents debug.",
+        "scene": "an extra panel slotting onto the view panel"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Mint",
+        "text": "scripts/agent-credentials.sh mints a short-lived token for this account into the agent kubeconfig. Git holds no token.",
+        "scene": "a sealed token cylinder outside a locked vault"
+      }
+    ],
+    "facts": [
+      {
+        "value": "0",
+        "label": "Secret reads granted"
+      },
+      {
+        "value": "3",
+        "label": "verbs: get, list, watch"
+      }
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 MCP GATEWAY",
+    "title": "toolhive",
+    "tagline": "Runs the MCP tool servers Hermes uses behind one bearer-protected gateway, each limited to the tools it needs.",
+    "chips": [
+      "8 MCP SERVERS",
+      "ONE GATEWAY",
+      "BEARER TOKEN",
+      "READ-ONLY FILTERS"
+    ],
+    "icon": "blocks",
+    "status": "RECONCILED BY FLUX \u2022 ai/toolhive"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Eight tool servers, one door, one token",
+    "steps": [
+      {
+        "icon": "package",
+        "title": "Operator",
+        "text": "The ToolHive operator and its CRDs install from their own Kustomization first, so every MCPServer resource has a kind to reconcile.",
+        "scene": "a toolbox being opened on a workbench"
+      },
+      {
+        "icon": "boxes",
+        "title": "Servers",
+        "text": "Eight MCPServer objects run one tool server each in the mcp-tools group. Those that need credentials read them from 1Password-backed Secrets.",
+        "scene": "eight small modules on one shelf"
+      },
+      {
+        "icon": "layers",
+        "title": "Gateway",
+        "text": "A virtual MCP server aggregates the group's tools behind one Service, prefixes each tool with its server name, and applies per-server tool filters.",
+        "scene": "many tool beams merging into one hub"
+      },
+      {
+        "icon": "key-round",
+        "title": "Token",
+        "text": "Envoy checks a bearer token on the MCP route. The token is generated once and pushed to 1Password for the consumers that call it.",
+        "scene": "a token stamped and sealed into a vault"
+      },
+      {
+        "icon": "network",
+        "title": "Search",
+        "text": "A small CPU embedding server indexes tools for each session, so the gateway can pick the right ones without sharing the B70.",
+        "scene": "a search index drawn as a grid of cards"
+      }
+    ],
+    "facts": [
+      {
+        "value": "8",
+        "label": "tool servers"
+      },
+      {
+        "value": "4483",
+        "label": "gateway port"
+      },
+      {
+        "value": "64",
+        "label": "token length"
+      },
+      {
+        "value": "CPU",
+        "label": "tool index"
+      }
+    ]
+  },
+  "art": {
+    "about": "an MCP gateway that aggregates tool servers behind one bearer-protected route, with per-server tool filters",
+    "title": "How toolhive routes MCP tools",
+    "model": "gpt",
+    "subject": ""
+  }
+}

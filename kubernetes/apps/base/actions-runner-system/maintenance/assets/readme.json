@@ -1,0 +1,70 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 ARC \u2022 MAINTENANCE",
+    "title": "actions-runner-maintenance",
+    "tagline": "A 15-minute CronJob that removes orphaned home-ops runner registrations and cancels workflow runs stuck in the queue.",
+    "chips": [
+      "EVERY 15 MIN",
+      "NO POD, NO RUNNER",
+      "CANCEL AFTER 30 MIN",
+      "FAILS CLOSED"
+    ],
+    "icon": "wrench",
+    "status": "RECONCILED BY FLUX \u2022 actions-runner-system/maintenance"
+  },
+  "art": {
+    "about": "a cleanup job that prunes orphaned CI runners",
+    "title": "Runner maintenance",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Three passes over one repository, failing closed",
+    "steps": [
+      {
+        "icon": "user-x",
+        "title": "Sweep",
+        "text": "An offline runner with no Pod of the same name is deleted. A runner whose Pod still exists is left for ARC to finish registering.",
+        "scene": "a ghost silhouette fading beside a pod"
+      },
+      {
+        "icon": "ban",
+        "title": "Cancel",
+        "text": "Queued workflow runs older than 30 minutes are cancelled, so one stuck job cannot hold the queue.",
+        "scene": "a queued stack of cards with one crossed out"
+      },
+      {
+        "icon": "clock",
+        "title": "Report",
+        "text": "In-progress runs older than 60 minutes are logged as warnings only. A long build is not killed.",
+        "scene": "a clock over a running process bar"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Fail closed",
+        "text": "If the Pod list fails or the token is missing, the sweep deletes nothing for that run.",
+        "scene": "a closed gate across a set of runner pods"
+      }
+    ],
+    "facts": [
+      {
+        "value": "15 M",
+        "label": "run interval"
+      },
+      {
+        "value": "30 M",
+        "label": "queued-run cutoff"
+      },
+      {
+        "value": "10 M",
+        "label": "job deadline"
+      },
+      {
+        "value": "1 REPO",
+        "label": "repository maintained"
+      }
+    ]
+  }
+}

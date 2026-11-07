@@ -1,0 +1,72 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 DNS",
+    "title": "coredns",
+    "tagline": "Answers cluster DNS for every pod on the kube-dns Service and forwards everything else to the Talos host resolver.",
+    "chips": [
+      "2 REPLICAS \u2022 SPREAD",
+      "AAAA NODATA",
+      "FORWARD TO HOSTDNS",
+      "NO CPU LIMIT"
+    ],
+    "icon": "globe",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/coredns"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a pod lookup to an answer",
+    "steps": [
+      {
+        "icon": "search",
+        "title": "Query",
+        "text": "A pod asks the kube-dns Service at 10.43.0.10. One of two CoreDNS replicas on control-plane nodes answers.",
+        "scene": "a small query arrow hitting one of a pair of lit towers"
+      },
+      {
+        "icon": "layers-3",
+        "title": "Plugins",
+        "text": "Cluster names go to the kubernetes plugin. AAAA gets NODATA, because the cluster is IPv4 only. Other names are forwarded.",
+        "scene": "stacked translucent panels in sequence"
+      },
+      {
+        "icon": "clock",
+        "title": "Cache",
+        "text": "Answers are cached with prefetch and serve_stale, so a short upstream outage does not fail every lookup.",
+        "scene": "a glowing cache vault with a timer ring"
+      },
+      {
+        "icon": "route",
+        "title": "Forward",
+        "text": "Unmatched names go to 169.254.116.108, the Talos hostDNS listener, not the node resolv.conf.",
+        "scene": "a data path leaving a node block toward a DNS beacon"
+      },
+      {
+        "icon": "activity",
+        "title": "Observe",
+        "text": "Port 9153 exports Prometheus metrics. The ready plugin gates the Pod, and lameduck drains it cleanly.",
+        "scene": "a metrics gauge beside a signal beacon"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "replicas, spread across nodes"
+      },
+      {
+        "value": "9153",
+        "label": "Prometheus metrics port"
+      },
+      {
+        "value": "0",
+        "label": "AAAA answers returned"
+      }
+    ]
+  },
+  "art": {
+    "about": "how cluster DNS answers a pod lookup",
+    "title": "How CoreDNS answers a pod",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  }
+}

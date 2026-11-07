@@ -1,0 +1,69 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MONITORING \u2022 AUTOSCALING",
+    "title": "keda",
+    "tagline": "Runs the KEDA operator and metrics server, so a ScaledObject can scale a workload on an event source, down to zero.",
+    "chips": [
+      "OPERATOR \u2022 METRICS SERVER",
+      "HELM \u2022 OCI MIRROR",
+      "NO SCALEDOBJECT IN GIT",
+      "WAIT TRUE"
+    ],
+    "icon": "scaling",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/keda"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "The operator writes the HPA, the metrics server answers it",
+    "steps": [
+      {
+        "icon": "package",
+        "title": "Chart",
+        "text": "OCIRepository keda pulls the chart from the home-operations charts mirror at a pinned tag. Renovate bumps the tag.",
+        "scene": "a sealed container crate with a tag"
+      },
+      {
+        "icon": "gauge",
+        "title": "Operator",
+        "text": "keda-operator watches ScaledObject and ScaledJob resources, and creates the HorizontalPodAutoscaler that does the scaling.",
+        "scene": "a dial gauge on a control panel"
+      },
+      {
+        "icon": "radio-tower",
+        "title": "Metrics",
+        "text": "The metrics server serves the external metrics API that the HPA reads. If it is down, every scaled workload stops moving.",
+        "scene": "a radio tower broadcasting signal arcs"
+      },
+      {
+        "icon": "trending-up",
+        "title": "Scale",
+        "text": "A workload that opts in gets a ScaledObject in its own namespace. KEDA scales it between its min and max, and to zero when allowed.",
+        "scene": "a bar chart rising from zero"
+      }
+    ],
+    "facts": [
+      {
+        "value": "0",
+        "label": "ScaledObjects in Git"
+      },
+      {
+        "value": "256 MI",
+        "label": "operator memory limit"
+      },
+      {
+        "value": "128 MI",
+        "label": "metrics server memory limit"
+      },
+      {
+        "value": "1 H",
+        "label": "HelmRelease reconcile interval"
+      }
+    ]
+  },
+  "art": {
+    "about": "how KEDA turns an event source into a scaled workload",
+    "title": "How KEDA scales a workload",
+    "model": "gpt",
+    "subject": ""
+  }
+}

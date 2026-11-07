@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 PUSH",
+    "title": "ntfy",
+    "tagline": "Publishes and delivers push notifications over plain HTTP, with a message cache, attachments and a user store on one claim.",
+    "chips": [
+      "HTTP PUB/SUB",
+      "ANONYMOUS READ-WRITE",
+      "KOPIUR BACKUP",
+      "INTERNAL ONLY"
+    ],
+    "icon": "bell-ring",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/ntfy"
+  },
+  "art": {
+    "about": "an HTTP publish and subscribe server that pushes notifications to phones and browsers",
+    "title": "How ntfy delivers a message",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A POST to a topic becomes a push",
+    "steps": [
+      {
+        "icon": "file-text",
+        "title": "Config",
+        "text": "ConfigMap ntfy-config mounts server.yml at /etc/ntfy/server.yml. It sets the base URL, the cache, attachment limits and the upstream relay.",
+        "scene": "a config sheet with toggles"
+      },
+      {
+        "icon": "send",
+        "title": "Publish",
+        "text": "A client POSTs to a topic on envoy-internal. Messages stay in the SQLite cache for 12 hours.",
+        "scene": "a paper plane carrying a bell"
+      },
+      {
+        "icon": "bell-ring",
+        "title": "Subscribe",
+        "text": "Subscribers hold a stream open with a keepalive every 45 seconds. iOS wake-ups go through the upstream relay at ntfy.sh.",
+        "scene": "a bell with a ripple"
+      },
+      {
+        "icon": "archive",
+        "title": "Attach",
+        "text": "Attachments expire after 24 hours, with a 50 MB limit per file and 1 GB in total, under the cache directory.",
+        "scene": "a file in a glowing tray"
+      },
+      {
+        "icon": "database",
+        "title": "Keep",
+        "text": "The auth database under /var/lib/ntfy and the cache under /var/cache/ntfy share claim ntfy, which kopiur backs up.",
+        "scene": "archive boxes beside a shield"
+      }
+    ],
+    "facts": [
+      {
+        "value": "12 H",
+        "label": "message cache"
+      },
+      {
+        "value": "24 H",
+        "label": "attachment expiry"
+      },
+      {
+        "value": "50 MB",
+        "label": "attachment size limit"
+      },
+      {
+        "value": "30",
+        "label": "subscriptions per visitor"
+      }
+    ]
+  }
+}

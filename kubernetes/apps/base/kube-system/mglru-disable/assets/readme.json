@@ -1,0 +1,55 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 KERNEL",
+    "title": "mglru-disable",
+    "tagline": "Rewrites the kernel's MGLRU switch to 0 every five minutes, so the multi-generational LRU stays off on every node.",
+    "chips": [
+      "EVERY NODE",
+      "SECOND LAYER OF TWO",
+      "300 S REASSERT",
+      "PRIVILEGED ON /SYS"
+    ],
+    "icon": "memory-stick",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/mglru-disable"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Set at boot, reasserted on a loop",
+    "steps": [
+      {
+        "icon": "hard-drive",
+        "title": "Boot",
+        "text": "Talos machine.sysfs writes kernel/mm/lru_gen/enabled as 0 when the node starts. That is the first layer.",
+        "scene": "a node block with a switch set to off"
+      },
+      {
+        "icon": "timer",
+        "title": "Reassert",
+        "text": "This DaemonSet writes the same 0 every 300 seconds, if the file is writable. That is the second layer.",
+        "scene": "a clock ring resetting a switch"
+      },
+      {
+        "icon": "lock",
+        "title": "Reach",
+        "text": "The pod is privileged and mounts the host /sys read-write. No other manifest in this repo mounts host /sys.",
+        "scene": "a locked hatch into a sysfs panel"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Keep",
+        "text": "Both layers stay until a reboot proves sysfs alone holds. Removing either one is a separate decision.",
+        "scene": "two stacked locks on a node"
+      }
+    ],
+    "facts": [
+      {
+        "value": "300 S",
+        "label": "reassert interval"
+      },
+      {
+        "value": "ALL",
+        "label": "nodes, every taint tolerated"
+      }
+    ]
+  }
+}

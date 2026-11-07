@@ -1,0 +1,69 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 CLEANUPARR",
+    "title": "cleanuparr",
+    "tagline": "Strikes stalled and failed queue items in the *arr apps, then removes them so each app searches again.",
+    "chips": [
+      "STRIKE RULES",
+      "APP STATE IN PVC",
+      "KOPIUR BACKUP",
+      "INTERNAL ONLY"
+    ],
+    "icon": "eraser",
+    "status": "RECONCILED BY FLUX \u2022 downloads/cleanuparr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Strike, remove, search again",
+    "steps": [
+      {
+        "icon": "list-checks",
+        "title": "Scan",
+        "text": "Cleanuparr reads the Sonarr, Radarr and Lidarr queues through their APIs. Its instances and rules are set in its own UI.",
+        "scene": "a queue of download tiles on a conveyor"
+      },
+      {
+        "icon": "timer-reset",
+        "title": "Strike",
+        "text": "A stalled, failed-import or metadata-stuck item collects a strike on each pass. The strike limit is set in the app, not in Git.",
+        "scene": "a stopwatch over a stalled tile"
+      },
+      {
+        "icon": "trash-2",
+        "title": "Remove",
+        "text": "At the limit it removes the item from the download client and blocklists the release.",
+        "scene": "a broken tile dropping into a bin"
+      },
+      {
+        "icon": "search",
+        "title": "Search",
+        "text": "The *arr app sees the release is gone and searches for another one. Its config is on a 1Gi ceph-block claim, backed up by kopiur.",
+        "scene": "a magnifier sweeping a field of release tiles"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1 GI",
+        "label": "config claim, kopiur"
+      },
+      {
+        "value": "11011",
+        "label": "HTTP port"
+      },
+      {
+        "value": "2000",
+        "label": "runtime UID and GID"
+      },
+      {
+        "value": "0",
+        "label": "rules in Git"
+      }
+    ]
+  },
+  "art": {
+    "about": "a queue janitor that strikes stalled downloads and removes them so the *arr apps search again",
+    "title": "How Cleanuparr clears stuck downloads",
+    "model": "gpt",
+    "subject": ""
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 PAGE WATCH",
+    "title": "changedetection",
+    "tagline": "Watches web pages for changes, renders them in a Chrome sidecar, and keeps each watch history on a backed-up claim.",
+    "chips": [
+      "HEADLESS CHROME",
+      "KOPIUR BACKUP",
+      "1 GI CLAIM",
+      "INTERNAL ONLY"
+    ],
+    "icon": "eye",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/changedetection"
+  },
+  "art": {
+    "about": "a page watcher that renders a web page in headless Chrome and diffs it against the last copy",
+    "title": "How changedetection watches a page",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Render the page, diff it, keep the history",
+    "steps": [
+      {
+        "icon": "globe",
+        "title": "Fetch",
+        "text": "The app container runs changedetection.io and checks each watched URL on its schedule. JavaScript pages go to the browser sidecar.",
+        "scene": "a web page card under a magnifying eye"
+      },
+      {
+        "icon": "chrome",
+        "title": "Render",
+        "text": "The browserless container listens on localhost port 3000 and runs Chrome with ads blocked and stealth on. It runs as its own uid.",
+        "scene": "a headless browser window with a shield"
+      },
+      {
+        "icon": "git-compare",
+        "title": "Diff",
+        "text": "Each check is stored under /datastore. The diff compares it with the previous snapshot of the same watch.",
+        "scene": "two stacked page snapshots with one highlighted line"
+      },
+      {
+        "icon": "bell",
+        "title": "Alert",
+        "text": "A change goes to the notification URLs set in the UI. Those URLs live in the datastore, not in Git.",
+        "scene": "a bell with a ripple"
+      },
+      {
+        "icon": "archive",
+        "title": "Keep",
+        "text": "kopiur backs up the claim changedetection-config to Ceph and R2, so the watch history survives a rebuild.",
+        "scene": "archive boxes beside a shield"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "containers per pod"
+      },
+      {
+        "value": "1 GI",
+        "label": "datastore claim, backed up"
+      },
+      {
+        "value": "2 GI",
+        "label": "Chrome memory limit"
+      },
+      {
+        "value": "5000",
+        "label": "app port inside the pod"
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 NETWORK \u2022 DNS",
+    "title": "cloudflare-dns",
+    "tagline": "Publishes public hostnames to Cloudflare DNS as proxied records, from HTTPRoutes on envoy-external and DNSEndpoints.",
+    "chips": [
+      "EXTERNAL-DNS",
+      "CLOUDFLARE \u2022 PROXIED",
+      "ENVOY-EXTERNAL ONLY",
+      "POLICY SYNC"
+    ],
+    "icon": "cloud",
+    "status": "RECONCILED BY FLUX \u2022 network/cloudflare-dns"
+  },
+  "art": {
+    "about": "how a public hostname becomes a proxied DNS record",
+    "title": "How cloudflare-dns publishes public names",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a route on envoy-external to a proxied record",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Token",
+        "text": "ExternalSecret cloudflare-dns builds the API token and zone ID for Secret cloudflare-dns-secret from 1Password item cloudflare.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "scan-eye",
+        "title": "Watch",
+        "text": "The external-dns controller reads HTTPRoutes attached to envoy-external and DNSEndpoint objects on a one minute interval.",
+        "scene": "a magnifier over a route map"
+      },
+      {
+        "icon": "cloud",
+        "title": "Write",
+        "text": "It writes proxied records in the lab zone, each with a TXT twin that marks ownership.",
+        "scene": "a cloud holding a proxied CNAME record card"
+      },
+      {
+        "icon": "list-checks",
+        "title": "Prune",
+        "text": "Policy sync deletes the records it owns when their source goes away. Records without a twin are never touched.",
+        "scene": "a list with one line struck through"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1 M",
+        "label": "sync interval"
+      },
+      {
+        "value": "180 S",
+        "label": "stale alert threshold"
+      },
+      {
+        "value": "2",
+        "label": "sources: DNSEndpoint and HTTPRoute"
+      }
+    ]
+  }
+}

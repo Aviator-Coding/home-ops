@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 AUTOMATION",
+    "title": "n8n",
+    "tagline": "Runs the n8n workflow engine on a CloudNativePG database, with the editor on the internal gateway and only webhook paths on the external one.",
+    "chips": [
+      "POSTGRES BACKEND",
+      "WEBHOOKS EXTERNAL",
+      "KOPIUR BACKUP",
+      "METRICS SCRAPED"
+    ],
+    "icon": "workflow",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/n8n"
+  },
+  "art": {
+    "about": "a workflow automation engine with a visual editor, a database and public webhook endpoints",
+    "title": "How n8n runs a workflow",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Editor inside, webhooks outside",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Key",
+        "text": "ExternalSecret n8n-secret carries the encryption key, the database login and the superuser login from 1Password items n8n and cloudnative-pg.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "database",
+        "title": "Database",
+        "text": "The cnpg-database component creates role and database n8n on postgres-18. init-postgres waits for them before n8n starts.",
+        "scene": "a database cylinder with a padlock"
+      },
+      {
+        "icon": "workflow",
+        "title": "Editor",
+        "text": "The editor and REST API sit behind envoy-internal. Liveness checks /healthz, readiness checks /healthz/readiness, which tests the database.",
+        "scene": "a workflow canvas with three linked nodes"
+      },
+      {
+        "icon": "globe",
+        "title": "Webhook",
+        "text": "Only /webhook and /rest/oauth2-credential are routed through envoy-external. Every other path stays on the internal gateway.",
+        "scene": "a globe with a funnel of requests"
+      },
+      {
+        "icon": "radio",
+        "title": "Watch",
+        "text": "A ServiceMonitor scrapes /metrics on the http port every 30 seconds. Gatus checks readiness, not liveness.",
+        "scene": "a radar dish over a line chart"
+      }
+    ],
+    "facts": [
+      {
+        "value": "8 GI",
+        "label": "config claim, backed up"
+      },
+      {
+        "value": "2",
+        "label": "public path prefixes"
+      },
+      {
+        "value": "50 K",
+        "label": "execution rows kept at most"
+      },
+      {
+        "value": "1000 MI",
+        "label": "memory limit"
+      }
+    ]
+  }
+}

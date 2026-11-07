@@ -1,0 +1,69 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 LIDARR",
+    "title": "lidarr",
+    "tagline": "Music library manager on its own PostgreSQL 18 database, importing Usenet downloads into the NAS music share.",
+    "chips": [
+      "POSTGRES 18",
+      "NFS MUSIC",
+      "KOPIUR BACKUP",
+      "INTERNAL ONLY"
+    ],
+    "icon": "music",
+    "status": "RECONCILED BY FLUX \u2022 downloads/lidarr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Database first, then the music library",
+    "steps": [
+      {
+        "icon": "database",
+        "title": "Database",
+        "text": "The lidarr-db Kustomization creates role and database lidarr on the shared postgres-18 Cluster. Both are retained if the app is removed.",
+        "scene": "a database cylinder gaining a new labelled drawer"
+      },
+      {
+        "icon": "key-round",
+        "title": "Secret",
+        "text": "ExternalSecret lidarr-secret holds the database settings, the API key and the postgres-init credentials, all from 1Password items lidarr and cloudnative-pg.",
+        "scene": "a key ring with several keys on a vault door"
+      },
+      {
+        "icon": "folder-sync",
+        "title": "Import",
+        "text": "init-dirs creates /data/nas-media/Music on the NAS. Lidarr reads downloads from the shared claim and imports finished albums into the library.",
+        "scene": "album tiles moving from a download folder into a music shelf"
+      },
+      {
+        "icon": "archive",
+        "title": "Keep",
+        "text": "The 8Gi lidarr-config claim is backed up by kopiur. The data lives in PostgreSQL, which has its own barman backup.",
+        "scene": "a music disc sealed in an archive box"
+      }
+    ],
+    "facts": [
+      {
+        "value": "PG 18",
+        "label": "shared CNPG cluster"
+      },
+      {
+        "value": "8 GI",
+        "label": "config claim, kopiur"
+      },
+      {
+        "value": "8080",
+        "label": "HTTP port"
+      },
+      {
+        "value": "2000",
+        "label": "runtime UID and GID"
+      }
+    ]
+  },
+  "art": {
+    "about": "a music manager that keeps its state in PostgreSQL and imports finished downloads into a NAS library",
+    "title": "How Lidarr imports music",
+    "model": "gpt",
+    "subject": ""
+  }
+}

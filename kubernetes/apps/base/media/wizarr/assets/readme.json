@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MEDIA \u2022 INVITES",
+    "title": "wizarr",
+    "tagline": "Issues Plex invite links to friends, and seeds its admin, Plex server and Seerr rows from GitOps secrets on every start.",
+    "chips": [
+      "SEEDED FROM GIT",
+      "PLEX INVITES",
+      "PUBLIC JOIN ROUTE",
+      "KOPIUR \u2022 R2"
+    ],
+    "icon": "user-plus",
+    "status": "RECONCILED BY FLUX \u2022 media/wizarr"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Generate once, seed on boot, invite through join",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Generate",
+        "text": "The Password generator makes the admin password and the Wizarr API key once. PushSecret records both in 1Password item wizarr.",
+        "scene": "two keys cut from a single block"
+      },
+      {
+        "icon": "database",
+        "title": "Seed",
+        "text": "An init container runs the database upgrade, then seed.py. It writes the admin, the Plex server, the Seerr connection and the hermes API key.",
+        "scene": "a database cylinder being filled with glowing rows"
+      },
+      {
+        "icon": "monitor",
+        "title": "Admin",
+        "text": "wizarr.${SECRET_DOMAIN} on envoy-internal serves the admin UI and the health check to LAN and VPN clients only.",
+        "scene": "an admin panel on a glowing monitor"
+      },
+      {
+        "icon": "user-plus",
+        "title": "Join",
+        "text": "join.${SECRET_DOMAIN} on envoy-external routes only the invite paths and /favicon.ico. Every other path on that host is not routed.",
+        "scene": "a door opening onto an invitation card"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Keep",
+        "text": "kopiur snapshots the 1 GiB SQLite claim to R2 each day. Invites and libraries live in that database.",
+        "scene": "a small database cylinder flowing into a cloud"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1 GI",
+        "label": "database claim"
+      },
+      {
+        "value": "5690",
+        "label": "HTTP port"
+      },
+      {
+        "value": "2",
+        "label": "routes, one per trust zone"
+      },
+      {
+        "value": "1 POD",
+        "label": "Recreate, RWO claim"
+      }
+    ]
+  },
+  "art": {
+    "about": "how an invite becomes a Plex library share",
+    "title": "How Wizarr invites friends to Plex",
+    "model": "gpt",
+    "subject": ""
+  }
+}

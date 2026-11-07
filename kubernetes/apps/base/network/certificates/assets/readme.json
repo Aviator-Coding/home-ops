@@ -1,0 +1,59 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 NETWORK \u2022 TLS",
+    "title": "certificates",
+    "tagline": "Keeps the wildcard certificate in 1Password, so a rebuilt cluster restores it instead of spending a new issuance.",
+    "chips": [
+      "1PASSWORD",
+      "TLS PAIR",
+      "RESTORE \u2022 EXPORT"
+    ],
+    "icon": "file-key",
+    "status": "RECONCILED BY FLUX \u2022 network/certificates"
+  },
+  "art": {
+    "about": "how a TLS pair is restored and exported",
+    "title": "Certificate restore and export",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A TLS pair that survives a rebuild",
+    "steps": [
+      {
+        "icon": "download",
+        "title": "Restore",
+        "text": "On create, ExternalSecret sklab-dev-tls pulls item sklab-dev-tls from 1Password into a kubernetes.io/tls Secret of the same name, then leaves it alone.",
+        "scene": "a sealed envelope opening into a document"
+      },
+      {
+        "icon": "file-key",
+        "title": "Issue",
+        "text": "cert-manager issues Certificate sklab-dev-production from the letsencrypt-production ClusterIssuer and writes Secret sklab-dev-production-tls.",
+        "scene": "a certificate document receiving a wax seal"
+      },
+      {
+        "icon": "upload",
+        "title": "Export",
+        "text": "PushSecret sklab-dev-tls copies tls.crt and tls.key from that Secret back into the same 1Password item, base64 encoded.",
+        "scene": "a document sliding into a vault door"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1",
+        "label": "1Password item holds the pair"
+      },
+      {
+        "value": "1 H",
+        "label": "export Kustomization interval"
+      },
+      {
+        "value": "90 D",
+        "label": "lifetime of each issued certificate"
+      }
+    ]
+  }
+}

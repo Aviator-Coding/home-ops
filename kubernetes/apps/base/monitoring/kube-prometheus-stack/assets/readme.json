@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 METRICS \u2022 PROMETHEUS",
+    "title": "kube-prometheus-stack",
+    "tagline": "Scrapes the cluster every minute, evaluates the alert rules and keeps 14 days of metrics for Grafana and the pagers.",
+    "chips": [
+      "14 D \u2022 50 GB CAP",
+      "1 MIN SCRAPE",
+      "CEPH-BLOCK \u2022 55 GI",
+      "3 GI REQUEST"
+    ],
+    "icon": "activity",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/kube-prometheus-stack"
+  },
+  "art": {
+    "about": "how Prometheus scrapes, stores and alerts on cluster metrics",
+    "title": "How kube-prometheus-stack watches the cluster",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a ServiceMonitor to a page",
+    "steps": [
+      {
+        "icon": "scan-search",
+        "title": "Discover",
+        "text": "Every ServiceMonitor, PodMonitor and Probe in every namespace is selected, with no release label needed. The chart adds kubelet, the API server and node-exporter.",
+        "scene": "a radar sweep over a grid of server racks"
+      },
+      {
+        "icon": "activity",
+        "title": "Scrape",
+        "text": "Prometheus pulls each target once a minute into a TSDB on a 55 GiB volume. High-cardinality series are dropped at scrape time.",
+        "scene": "streams of data points flowing into a cylinder database"
+      },
+      {
+        "icon": "scroll-text",
+        "title": "Evaluate",
+        "text": "Rules under alerts/ and the chart's rules are evaluated every 30 seconds, the operator default. Three chart rules are replaced by recency-bound copies that keep their names.",
+        "scene": "a ledger page with checkmarks and a small bell"
+      },
+      {
+        "icon": "bell-ring",
+        "title": "Alert",
+        "text": "Firing alerts are sent to Alertmanager on port 9093 over the v2 API. Severity decides what pages, so critical is priority 2.",
+        "scene": "a bell ringing with a signal wave"
+      },
+      {
+        "icon": "gauge",
+        "title": "Serve",
+        "text": "Grafana and kromgo query Prometheus in-cluster. The web UI is on envoy-internal, behind the internal route only.",
+        "scene": "a dashboard gauge panel behind a padlock"
+      }
+    ],
+    "facts": [
+      {
+        "value": "14 D",
+        "label": "metric retention"
+      },
+      {
+        "value": "1 M",
+        "label": "scrape interval"
+      },
+      {
+        "value": "3",
+        "label": "chart rules replaced"
+      },
+      {
+        "value": "7",
+        "label": "custom rule files"
+      }
+    ]
+  }
+}

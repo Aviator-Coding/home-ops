@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MEDIA \u2022 PLEX",
+    "title": "plex",
+    "tagline": "Streams the NAS media library to LAN, WAN and tailnet clients, transcoding on the Intel iGPU, and shares one token with the apps around it.",
+    "chips": [
+      "INTEL IGPU \u2022 XE",
+      "LAN LOAD BALANCER",
+      "TAILSCALE INGRESS",
+      "KOPIUR \u2022 R2"
+    ],
+    "icon": "clapperboard",
+    "status": "RECONCILED BY FLUX \u2022 media/plex"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "NFS library in, transcoded streams out",
+    "steps": [
+      {
+        "icon": "server",
+        "title": "Library",
+        "text": "The media share from the NAS mounts read-only at /data/nas-media. Plex scans it and never writes to it.",
+        "scene": "a server rack beside a library of film reels"
+      },
+      {
+        "icon": "cpu",
+        "title": "Transcode",
+        "text": "The gpu.intel.com/xe resource gives the pod the iGPU, so hardware transcodes run on the Intel decoder. Transcode scratch is a 20 GiB emptyDir.",
+        "scene": "a chip with glowing decode lanes"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Expose",
+        "text": "plex.${SECRET_DOMAIN} on envoy-external serves WAN clients. A LoadBalancer address serves the LAN, and a Tailscale ingress serves the tailnet.",
+        "scene": "a globe linked by a secure tunnel to a glowing screen"
+      },
+      {
+        "icon": "lock-keyhole",
+        "title": "Fence",
+        "text": "Plex trusts 10/8 by design, so the CiliumNetworkPolicy default-denies pod-network ingress and admits only the named consumers. Tailscale, Wizarr and Seerr are limited to port 32400.",
+        "scene": "a glowing firewall grid around a server"
+      },
+      {
+        "icon": "key-round",
+        "title": "Token",
+        "text": "PushSecret plex-token writes PLEX_TOKEN into item plex. plex-exporter and the Wizarr seed read the same item.",
+        "scene": "a token card pushed into a vault"
+      }
+    ],
+    "facts": [
+      {
+        "value": "8 GI",
+        "label": "memory limit"
+      },
+      {
+        "value": "20 GI",
+        "label": "transcode scratch"
+      },
+      {
+        "value": "32400",
+        "label": "Plex port"
+      },
+      {
+        "value": "1 GPU",
+        "label": "iGPU per pod"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Plex serves a NAS library and transcodes on the iGPU",
+    "title": "How Plex serves the NAS library",
+    "model": "gpt",
+    "subject": ""
+  }
+}

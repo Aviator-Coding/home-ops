@@ -1,0 +1,49 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 METRICS \u2022 CRDS",
+    "title": "prometheus-operator-crds",
+    "tagline": "Installs the monitoring.coreos.com CRDs that every ServiceMonitor, PodMonitor and PrometheusRule in the cluster is written against.",
+    "chips": [
+      "CRDS ONLY",
+      "OPERATOR IN KPS",
+      "OCI CHART",
+      "NO VALUES SET"
+    ],
+    "icon": "tags",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/prometheus-operator-crds"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Definitions first, then the operator",
+    "steps": [
+      {
+        "icon": "package",
+        "title": "Fetch",
+        "text": "Flux pulls the prometheus-operator-crds OCI chart at the tag pinned in ocirepository.yaml, every ten minutes.",
+        "scene": "a sealed crate arriving from a registry"
+      },
+      {
+        "icon": "file-text",
+        "title": "Apply",
+        "text": "The HelmRelease installs the CRDs with no values set, so the chart's defaults are the whole configuration.",
+        "scene": "a blueprint sheet pinned to a board"
+      },
+      {
+        "icon": "bell-ring",
+        "title": "Use",
+        "text": "The operator in kube-prometheus-stack reconciles Prometheus from these definitions. Monitors and rules in every namespace depend on them.",
+        "scene": "monitor and rule cards plugged into one hub"
+      }
+    ],
+    "facts": [
+      {
+        "value": "0",
+        "label": "values set on the HelmRelease"
+      },
+      {
+        "value": "10 MIN",
+        "label": "OCI source poll interval"
+      }
+    ]
+  }
+}

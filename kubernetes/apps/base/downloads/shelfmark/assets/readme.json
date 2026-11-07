@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 BOOKS",
+    "title": "shelfmark",
+    "tagline": "Searches for ebooks through Prowlarr, Usenet and direct HTTP sources, and drops renamed files into the Calibre-Web Automated ingest folder.",
+    "chips": [
+      "USENET + HTTP",
+      "NO TORRENTS",
+      "ENV-ONLY CONFIG",
+      "FLARESOLVERR"
+    ],
+    "icon": "book-open",
+    "status": "RECONCILED BY FLUX \u2022 downloads/shelfmark"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a book request to a file in the ingest folder",
+    "steps": [
+      {
+        "icon": "search",
+        "title": "Search",
+        "text": "Shelfmark queries Prowlarr for Usenet releases and the Hardcover, Google Books and Moly metadata providers for the title.",
+        "scene": "a magnifying glass over a shelf of book spines"
+      },
+      {
+        "icon": "download",
+        "title": "Usenet",
+        "text": "A Usenet pick goes to SABnzbd in the books category. The file is saved on shared-downloads at the path SABnzbd reports.",
+        "scene": "a usenet packet moving into a download tray"
+      },
+      {
+        "icon": "globe",
+        "title": "Direct",
+        "text": "Direct downloads come from Anna's Archive mirrors and LibGen search. Cloudflare-fronted pages go through FlareSolverr.",
+        "scene": "a globe with a shield wall and a downward arrow"
+      },
+      {
+        "icon": "file-pen",
+        "title": "Rename",
+        "text": "Files are renamed to Author - Title (Year) and written to /cwa-book-ingest, the NFS ingest folder that Calibre-Web Automated reads.",
+        "scene": "a book with a renamed label card"
+      },
+      {
+        "icon": "book-check",
+        "title": "Check",
+        "text": "A read-only mount of the CWA library lets Shelfmark see which books are already held.",
+        "scene": "a library shelf with a checkmark"
+      }
+    ],
+    "facts": [
+      {
+        "value": "3",
+        "label": "metadata providers enabled"
+      },
+      {
+        "value": "0",
+        "label": "own PVCs, config is env-only"
+      },
+      {
+        "value": "500 MB",
+        "label": "memory limit"
+      },
+      {
+        "value": "30 S",
+        "label": "delay before liveness, then 6 fails"
+      }
+    ]
+  },
+  "art": {
+    "about": "how a book request is searched, downloaded and renamed into an ingest folder",
+    "title": "How Shelfmark gets a book into the library",
+    "model": "gpt",
+    "subject": ""
+  }
+}

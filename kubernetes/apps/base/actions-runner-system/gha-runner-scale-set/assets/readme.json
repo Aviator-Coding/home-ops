@@ -1,0 +1,76 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 ARC \u2022 GITHUB ACTIONS",
+    "title": "gha-runner-scale-set",
+    "tagline": "Keeps a warm self-hosted runner for each repo and grows to fifteen when jobs queue.",
+    "chips": [
+      "ONE POOL PER REPO",
+      "MIN 1 \u2022 MAX 15",
+      "NO KUBE API",
+      "TALOS OS:OPERATOR"
+    ],
+    "icon": "workflow",
+    "status": "RECONCILED BY FLUX \u2022 actions-runner-system/gha-runner-scale-set"
+  },
+  "art": {
+    "about": "self-hosted GitHub Actions runners that scale on a queue of jobs",
+    "title": "From a queued job to an ephemeral runner pod",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a queued job to a single-use runner pod",
+    "steps": [
+      {
+        "icon": "ear",
+        "title": "Listen",
+        "text": "A listener pod long-polls GitHub for jobs on the home-ops and ai-k8s-sandbox repos.",
+        "scene": "a listening antenna over a glowing job queue"
+      },
+      {
+        "icon": "layers",
+        "title": "Scale",
+        "text": "The controller creates one single-use runner pod per job, between 1 and 15 pods per scale set.",
+        "scene": "stacked cyan pods rising from a dial"
+      },
+      {
+        "icon": "key-round",
+        "title": "Register",
+        "text": "Each runner registers with GitHub using skrumbach-runner-secret, synced from the 1Password item github.",
+        "scene": "a key sliding into a runner badge"
+      },
+      {
+        "icon": "square-terminal",
+        "title": "Run",
+        "text": "The job runs in the runner container. The home-ops set adds a talosctl binary; the sandbox set adds a privileged Docker sidecar.",
+        "scene": "a terminal window with a neon prompt inside a pod frame"
+      },
+      {
+        "icon": "trash-2",
+        "title": "Clean up",
+        "text": "The pod exits after one job. Its work volume goes with it: an emptyDir on home-ops, a 20 GiB Ceph block claim on the sandbox set.",
+        "scene": "a pod dissolving into particles"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1-15",
+        "label": "runners per scale set"
+      },
+      {
+        "value": "2",
+        "label": "scale sets"
+      },
+      {
+        "value": "20 GI",
+        "label": "work volume per job"
+      },
+      {
+        "value": "0",
+        "label": "ServiceAccount tokens mounted"
+      }
+    ]
+  }
+}

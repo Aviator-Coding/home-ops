@@ -1,0 +1,62 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 SCHEDULING",
+    "title": "descheduler",
+    "tagline": "Evicts pods the scheduler placed badly or that broke their placement rules, so the scheduler can place them again.",
+    "chips": [
+      "EVICTS VIA THE API",
+      "REBALANCE 20 TO 60",
+      "RESPECTS PDBS",
+      "KUBERNETES METRICS"
+    ],
+    "icon": "shuffle",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/descheduler"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Evict, then let the scheduler re-place",
+    "steps": [
+      {
+        "icon": "gauge",
+        "title": "Measure",
+        "text": "Node CPU, memory and pod counts come from metrics.k8s.io, the metrics-server API, not from the kubelet directly.",
+        "scene": "three node blocks with gauge needles"
+      },
+      {
+        "icon": "filter",
+        "title": "Select",
+        "text": "LowNodeUtilization moves pods off nodes above 60 percent while others sit below 20. Failed pods and pods that broke affinity, taints or spread are also selected.",
+        "scene": "a funnel sorting small cubes into bins"
+      },
+      {
+        "icon": "scissors",
+        "title": "Filter",
+        "text": "DefaultEvictor skips DaemonSets, system-critical pods, and local-storage pods. PodDisruptionBudgets still apply.",
+        "scene": "a shield in front of protected blocks"
+      },
+      {
+        "icon": "shuffle",
+        "title": "Evict",
+        "text": "The eviction goes through the API. The owning controller creates a replacement, and the scheduler picks its node.",
+        "scene": "a cube leaving one platform for another"
+      }
+    ],
+    "facts": [
+      {
+        "value": "20 / 60",
+        "label": "low and target utilization, percent"
+      },
+      {
+        "value": "1800 S",
+        "label": "minimum age for failed pod removal"
+      }
+    ]
+  },
+  "art": {
+    "about": "how the descheduler evicts misplaced pods",
+    "title": "How the descheduler rebalances",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  }
+}

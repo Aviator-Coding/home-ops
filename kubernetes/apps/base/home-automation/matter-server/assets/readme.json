@@ -1,0 +1,69 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 MATTER \u2022 IOT",
+    "title": "matter-server",
+    "tagline": "Hosts the Python Matter controller that Home Assistant talks to, on a fixed IoT address and a WebSocket on port 5580.",
+    "chips": [
+      "FIXED 10.40.0.101",
+      "WEBSOCKET 5580",
+      "RUNS AS ROOT",
+      "KOPIUR \u2022 R2"
+    ],
+    "icon": "network",
+    "status": "RECONCILED BY FLUX \u2022 home-automation/matter-server"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A root controller on the IoT VLAN, backed up daily",
+    "steps": [
+      {
+        "icon": "network",
+        "title": "Address",
+        "text": "Multus attaches net1 on multus-iot at a fixed 10.40.0.101/22, with a pinned MAC.",
+        "scene": "two network switches linked by a glowing cable"
+      },
+      {
+        "icon": "plug",
+        "title": "Serve",
+        "text": "python-matter-server listens on WebSocket port 5580 and advertises matter.${SECRET_DOMAIN}. The envoy-internal route carries it to Home Assistant.",
+        "scene": "a plug sending light along a glowing wire"
+      },
+      {
+        "icon": "shield",
+        "title": "Root",
+        "text": "The container runs as UID and GID 0 with supplemental group 34. The security context says the controller needs root.",
+        "scene": "a hardened shield over a server core"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Keep",
+        "text": "kopiur snapshots the matter-server claim to R2 each day. The mover runs as UID 0, which needs privileged movers.",
+        "scene": "snapshot cards flowing into a cloud bucket"
+      }
+    ],
+    "facts": [
+      {
+        "value": "5580",
+        "label": "WebSocket port"
+      },
+      {
+        "value": "1 GI",
+        "label": "data claim"
+      },
+      {
+        "value": "0",
+        "label": "UID the pod runs as"
+      },
+      {
+        "value": "H 10",
+        "label": "daily backup window"
+      }
+    ]
+  },
+  "art": {
+    "about": "how the Matter controller connects Home Assistant to IoT devices",
+    "title": "How matter-server bridges Matter devices",
+    "model": "gpt",
+    "subject": ""
+  }
+}

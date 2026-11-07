@@ -1,0 +1,62 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 kube-system \u2022 METRICS",
+    "title": "metrics-server",
+    "tagline": "Serves the metrics.k8s.io API that kubectl top, the descheduler and the dashboards read node and pod usage from.",
+    "chips": [
+      "15 S RESOLUTION",
+      "METRICS.K8S.IO",
+      "SCRAPED BY PROMETHEUS",
+      "KUBELET 10 S TIMEOUT"
+    ],
+    "icon": "gauge",
+    "status": "RECONCILED BY FLUX \u2022 kube-system/metrics-server"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From each kubelet to one metrics API",
+    "steps": [
+      {
+        "icon": "network",
+        "title": "Poll",
+        "text": "Every 15 seconds metrics-server asks each node's kubelet for CPU and memory, over the node status port.",
+        "scene": "three node blocks with signal pulses going up"
+      },
+      {
+        "icon": "database",
+        "title": "Hold",
+        "text": "It keeps only the latest sample in memory. There is no history store, so a restart empties the window.",
+        "scene": "a small memory chip holding a single snapshot"
+      },
+      {
+        "icon": "route",
+        "title": "Aggregate",
+        "text": "The API server proxies metrics.k8s.io to the metrics-server Service through an APIService object.",
+        "scene": "a routed arrow from a core hub to a service tower"
+      },
+      {
+        "icon": "gauge",
+        "title": "Read",
+        "text": "kubectl top, the descheduler and the HorizontalPodAutoscaler read the same API, and Prometheus scrapes the server.",
+        "scene": "dials and a graph panel fed by one cable"
+      }
+    ],
+    "facts": [
+      {
+        "value": "15 S",
+        "label": "metric resolution"
+      },
+      {
+        "value": "10 S",
+        "label": "kubelet request timeout"
+      }
+    ]
+  },
+  "art": {
+    "about": "how metrics-server serves node and pod usage",
+    "title": "How metrics-server feeds the metrics API",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  }
+}

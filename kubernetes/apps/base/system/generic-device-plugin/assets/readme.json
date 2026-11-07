@@ -1,0 +1,70 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 system \u2022 DEVICES",
+    "title": "generic-device-plugin",
+    "tagline": "Advertises the host's TUN device and the B70 Arc GPU to kubelet as devic.es resources, so pods request a device instead of mounting it.",
+    "chips": [
+      "DAEMONSET \u2022 ALL NODES",
+      "DEVIC.ES/B70",
+      "DEVIC.ES/B70-VAAPI",
+      "99 SHARES PER GROUP"
+    ],
+    "icon": "cpu",
+    "status": "RECONCILED BY FLUX \u2022 system/generic-device-plugin"
+  },
+  "art": {
+    "about": "a device plugin that turns host device nodes into schedulable resources",
+    "title": "How generic-device-plugin hands out devices",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a host device node to a schedulable share",
+    "steps": [
+      {
+        "icon": "plug",
+        "title": "Read",
+        "text": "The DaemonSet reads its device groups from config.yaml, mounted read-only from a ConfigMap whose name carries a content hash.",
+        "scene": "a plug feeding a config card into a slot"
+      },
+      {
+        "icon": "microchip",
+        "title": "Match",
+        "text": "Each group names host paths under /dev. The B70 is matched by its PCI address, so the path survives renumbering of the kernel nodes.",
+        "scene": "a GPU card tagged with a PCI slot label"
+      },
+      {
+        "icon": "share-2",
+        "title": "Share",
+        "text": "Each group advertises its count as shares. Kubelet hands them out under devic.es/b70 and devic.es/b70-vaapi, two names for one card.",
+        "scene": "one card split into ninety-nine small tokens"
+      },
+      {
+        "icon": "link",
+        "title": "Allocate",
+        "text": "A pod that requests a resource receives only the device nodes mapped for that group, and nothing else.",
+        "scene": "a pod receiving a single labelled device node"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1000",
+        "label": "shares of /dev/net/tun"
+      },
+      {
+        "value": "99",
+        "label": "shares per B70 group"
+      },
+      {
+        "value": "2",
+        "label": "names for the same card"
+      },
+      {
+        "value": "64 MI",
+        "label": "memory limit per pod"
+      }
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 SELFHOSTED \u2022 BOOKMARKS",
+    "title": "linkwarden",
+    "tagline": "Saves each bookmark as a readable archive, keeps its rows in a CloudNativePG database, and tags links through LiteLLM.",
+    "chips": [
+      "CNPG DATABASE",
+      "KOPIUR BACKUP",
+      "AI TAGS VIA LITELLM",
+      "INTERNAL ONLY"
+    ],
+    "icon": "bookmark",
+    "status": "RECONCILED BY FLUX \u2022 selfhosted/linkwarden"
+  },
+  "art": {
+    "about": "a bookmark manager that archives each saved page and tags it with a local language model",
+    "title": "How linkwarden saves a link",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A link in, a database row and an archive out",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Secret",
+        "text": "ExternalSecret linkwarden-secret builds the auth secret, the database URL and the LiteLLM key from 1Password items linkwarden and cloudnative-pg.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "database",
+        "title": "Database",
+        "text": "The cnpg-database component creates role and database linkwarden on the shared postgres-18 cluster. init-db waits for them.",
+        "scene": "a database cylinder with a padlock"
+      },
+      {
+        "icon": "archive",
+        "title": "Archive",
+        "text": "The app writes page archives to the claim linkwarden under /data/data. Monolith inlines each page into one file.",
+        "scene": "a web page folded into an archive box"
+      },
+      {
+        "icon": "sparkles",
+        "title": "Tag",
+        "text": "Auto-tagging posts to LiteLLM with the chat-local alias on the B70. When that model is down, tagging fails and nothing else depends on it.",
+        "scene": "a bookmark card with glowing tag chips"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Keep",
+        "text": "kopiur backs up the data claim to Ceph and R2. The database is backed up by its CloudNativePG cluster.",
+        "scene": "archive boxes beside a shield"
+      }
+    ],
+    "facts": [
+      {
+        "value": "5 GI",
+        "label": "data claim, backed up"
+      },
+      {
+        "value": "4 GI",
+        "label": "app memory limit"
+      },
+      {
+        "value": "30",
+        "label": "LiteLLM requests per minute"
+      },
+      {
+        "value": "256",
+        "label": "Monolith buffer in MB"
+      }
+    ]
+  }
+}

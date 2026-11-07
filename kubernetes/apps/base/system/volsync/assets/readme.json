@@ -1,0 +1,76 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 system \u2022 BACKUP \u2022 RETIRED",
+    "title": "volsync",
+    "tagline": "Retired: the VolSync operator is gone, and this Flux Kustomization keeps the Ceph bucket that holds 30 of 51 retired restic repositories.",
+    "chips": [
+      "OPERATOR REMOVED",
+      "BUCKET PRUNE OFF",
+      "30 OF 51 ON CEPH",
+      "EXPIRY NOT IN FORCE"
+    ],
+    "icon": "archive",
+    "status": "RETIRED \u2022 system/volsync KEPT FOR ITS CEPH BUCKET"
+  },
+  "art": {
+    "about": "a retired backup bucket that is kept on purpose",
+    "title": "What the retired VolSync bucket holds",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "WHAT IS LEFT",
+    "title": "One bucket, kept on purpose, with its prune switched off",
+    "steps": [
+      {
+        "icon": "archive",
+        "title": "Keep",
+        "text": "Flux Kustomization volsync renders only backend/. Its name is part of the guard: a rename or re-path lets prune delete the Ceph bucket's contents.",
+        "scene": "an archive box held shut with a padlock"
+      },
+      {
+        "icon": "database",
+        "title": "Bucket",
+        "text": "ObjectBucketClaim volsync on storage class ceph-bucket owns bucket volsync. Its reclaim policy is Delete, and prune is disabled on the claim.",
+        "scene": "a database cylinder behind a gate"
+      },
+      {
+        "icon": "user-round",
+        "title": "User",
+        "text": "CephObjectStoreUser volsync owns the bucket, with a 20G quota. Its prune is also disabled, and Git keeps it until expiry has run.",
+        "scene": "a user badge clipped to a key ring"
+      },
+      {
+        "icon": "send",
+        "title": "Keys",
+        "text": "The PushSecret copies the bucket's access keys to 1Password item volsync-template, which also holds the repository passwords.",
+        "scene": "a sealed envelope leaving a vault"
+      },
+      {
+        "icon": "snowflake",
+        "title": "Freeze",
+        "text": "Expiry of the retired repositories is not in force. Nothing here removes one. MinIO and R2 hold the other 21 and are not guarded by this Kustomization.",
+        "scene": "a clock frozen over a stack of repositories"
+      }
+    ],
+    "facts": [
+      {
+        "value": "30",
+        "label": "repos on the guarded Ceph bucket"
+      },
+      {
+        "value": "20G",
+        "label": "bucket user quota"
+      },
+      {
+        "value": "OFF",
+        "label": "prune on the claim and the user"
+      },
+      {
+        "value": "NOV 1",
+        "label": "VolSync operator removed"
+      }
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 NETWORK \u2022 INGRESS",
+    "title": "cloudflare-tunnel",
+    "tagline": "Runs two cloudflared replicas that dial out to Cloudflare and carry public traffic to envoy-external, so public traffic needs no inbound port.",
+    "chips": [
+      "CLOUDFLARED",
+      "QUIC \u2022 POST-QUANTUM",
+      "2 REPLICAS \u2022 PDB",
+      "1PASSWORD"
+    ],
+    "icon": "route",
+    "status": "RECONCILED BY FLUX \u2022 network/cloudflare-tunnel"
+  },
+  "art": {
+    "about": "how public traffic reaches the gateway through an outbound tunnel",
+    "title": "How the Cloudflare tunnel carries traffic",
+    "model": "gpt",
+    "quality": "medium",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Outbound only, from the edge to envoy-external",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Token",
+        "text": "ExternalSecret cloudflare-tunnel-secret reads the tunnel ID and token from 1Password item cloudflare into a Secret the pods load as env.",
+        "scene": "a key emerging from a vault"
+      },
+      {
+        "icon": "plug",
+        "title": "Dial",
+        "text": "Each cloudflared replica opens QUIC connections out to Cloudflare's edge and runs the tunnel with its token.",
+        "scene": "two small connectors reaching out to a cloud"
+      },
+      {
+        "icon": "route",
+        "title": "Route",
+        "text": "The ingress config sends the wildcard hostname to envoy-external's HTTPS port, with the lab's external name as the origin server name.",
+        "scene": "a cable forking into two paths"
+      },
+      {
+        "icon": "globe",
+        "title": "Resolve",
+        "text": "A CNAME for the external name points at the tunnel's Cloudflare host, so public names resolve to the edge.",
+        "scene": "a globe with a cable running to a gateway arch"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "replicas, spread by hostname"
+      },
+      {
+        "value": "QUIC",
+        "label": "transport, post-quantum key exchange on"
+      },
+      {
+        "value": "443",
+        "label": "origin port on envoy-external"
+      }
+    ]
+  }
+}

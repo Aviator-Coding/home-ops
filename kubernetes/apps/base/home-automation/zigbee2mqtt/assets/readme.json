@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 ZIGBEE \u2022 MQTT",
+    "title": "zigbee2mqtt",
+    "tagline": "Bridges the Zigbee network to MQTT through an Ember coordinator on the IoT VLAN. The network identity lives in 1Password.",
+    "chips": [
+      "EMBER \u2022 TCP",
+      "FIXED 10.40.0.102",
+      "MQTT \u2022 EMQX",
+      "KOPIUR \u2022 R2"
+    ],
+    "icon": "radio-tower",
+    "status": "RECONCILED BY FLUX \u2022 home-automation/zigbee2mqtt"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Coordinator on the IoT VLAN, devices on MQTT",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Identity",
+        "text": "ExternalSecret zigbee2mqtt pulls the PAN ID, extended PAN ID and network key from one 1Password item. Those three values define the Zigbee network.",
+        "scene": "a key cut into a radio antenna"
+      },
+      {
+        "icon": "route",
+        "title": "Route",
+        "text": "The init container adds the 10.40.0.0/22 route through net1, so the coordinator at 10.40.2.101 is reachable from the main routing table.",
+        "scene": "a glowing route line over a network switch"
+      },
+      {
+        "icon": "radio",
+        "title": "Radio",
+        "text": "zigbee2mqtt talks to the Ember coordinator over TCP port 6638 and publishes every device state to EMQX.",
+        "scene": "a radio tower sending signal waves to a mesh of small devices"
+      },
+      {
+        "icon": "workflow",
+        "title": "Publish",
+        "text": "Topics live under zigbee2mqtt/, with Home Assistant discovery on homeassistant/. Permit join is off, so a new device needs a deliberate switch-on.",
+        "scene": "message packets flowing along a cyan data path to a dashboard"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Keep",
+        "text": "kopiur snapshots the data claim to R2 each day. The claim holds the /data contents.",
+        "scene": "snapshot cards flowing into a cloud bucket"
+      }
+    ],
+    "facts": [
+      {
+        "value": "20",
+        "label": "Zigbee channel"
+      },
+      {
+        "value": "384Mi",
+        "label": "memory request and limit"
+      },
+      {
+        "value": "8080",
+        "label": "frontend port"
+      },
+      {
+        "value": "5 GI",
+        "label": "data claim"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Zigbee devices reach Home Assistant through MQTT",
+    "title": "How Zigbee2MQTT bridges devices to MQTT",
+    "model": "gpt",
+    "subject": ""
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 METRICS \u2022 UNIFI",
+    "title": "unpoller",
+    "tagline": "Polls the UniFi controller's API every two minutes and exposes its clients, ports and devices as Prometheus metrics.",
+    "chips": [
+      "POLL EVERY 2 M",
+      "PROMETHEUS ONLY",
+      "1PASSWORD \u2022 UNIFI",
+      "NON-ROOT \u2022 RO FS"
+    ],
+    "icon": "network",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/unpoller"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a UniFi poll to a Prometheus series",
+    "steps": [
+      {
+        "icon": "key-round",
+        "title": "Key",
+        "text": "ExternalSecret unpoller reads 1Password item unifi and renders the controller URL and API key into unpoller-secret.",
+        "scene": "a key drawn from a vault"
+      },
+      {
+        "icon": "radar",
+        "title": "Poll",
+        "text": "The pod calls the UniFi API with that key, as role home-ops, and reads the controller's current state.",
+        "scene": "a radar pulse reaching a router"
+      },
+      {
+        "icon": "chart-line",
+        "title": "Convert",
+        "text": "Each poll becomes Prometheus series on port 80. The ServiceMonitor scrapes /metrics every two minutes.",
+        "scene": "poll results turning into a line chart"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Stay",
+        "text": "Runs as UID 1000 with a read-only root filesystem and every capability dropped. The startup probe allows 30 checks, five seconds apart.",
+        "scene": "a container shell with a padlock"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2 MIN",
+        "label": "poll and scrape interval"
+      },
+      {
+        "value": "128 MI",
+        "label": "memory limit"
+      },
+      {
+        "value": "1000",
+        "label": "non-root UID"
+      },
+      {
+        "value": "30",
+        "label": "startup probe checks"
+      }
+    ]
+  }
+}

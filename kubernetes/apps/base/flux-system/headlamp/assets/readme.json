@@ -1,0 +1,72 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 FLUX \u2022 DASHBOARD",
+    "title": "headlamp",
+    "tagline": "Cluster dashboard for Kubernetes and Flux objects, behind Authentik on the internal gateway only.",
+    "chips": [
+      "AUTHENTIK SSO",
+      "CLUSTER-ADMIN",
+      "FLUX PLUGIN",
+      "1 GI \u2022 CEPH"
+    ],
+    "icon": "layout-dashboard",
+    "status": "RECONCILED BY FLUX \u2022 flux-system/headlamp"
+  },
+  "art": {
+    "about": "a cluster dashboard behind single sign-on and an internal gateway",
+    "title": "How Headlamp reaches the cluster",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Browser to cluster API, through Authentik and a plugin volume",
+    "steps": [
+      {
+        "icon": "lock",
+        "title": "Gate",
+        "text": "Envoy asks Authentik to approve each request through the headlamp-auth SecurityPolicy before the route forwards it.",
+        "scene": "a padlock on a gateway arch"
+      },
+      {
+        "icon": "route",
+        "title": "Route",
+        "text": "One HTTPRoute serves the dashboard on envoy-internal only, with no public DNS record.",
+        "scene": "a path on a map leading into a dashboard"
+      },
+      {
+        "icon": "puzzle",
+        "title": "Plugin",
+        "text": "An init container copies the Flux plugin onto a 1 GiB Ceph volume. The UI container mounts it read-only.",
+        "scene": "a puzzle piece sliding into a slot"
+      },
+      {
+        "icon": "shield-alert",
+        "title": "Act",
+        "text": "The pod runs as the headlamp-admin ServiceAccount, which holds a cluster-admin binding.",
+        "scene": "a cluster-admin key glowing above a server rack"
+      },
+      {
+        "icon": "rotate-ccw",
+        "title": "Restart",
+        "text": "The Recreate strategy stops the old pod before the new one starts, so the single-attach volume detaches cleanly.",
+        "scene": "one pod fading before the next lights up"
+      }
+    ],
+    "facts": [
+      {
+        "value": "SSO",
+        "label": "Authentik gate on the route"
+      },
+      {
+        "value": "1 GI",
+        "label": "plugin volume on ceph-block"
+      },
+      {
+        "value": "ADMIN",
+        "label": "cluster-admin binding"
+      }
+    ]
+  }
+}

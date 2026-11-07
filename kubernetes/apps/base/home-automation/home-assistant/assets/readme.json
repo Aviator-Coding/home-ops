@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 HOME AUTOMATION \u2022 HASS",
+    "title": "home-assistant",
+    "tagline": "Runs Home Assistant on a fixed IoT address, signs users in through Authentik, and serves a code-server editor behind SSO.",
+    "chips": [
+      "FIXED 10.40.0.100",
+      "AUTHENTIK OIDC",
+      "KOPIUR \u2022 R2",
+      "PROBES ON /manifest.json"
+    ],
+    "icon": "house",
+    "status": "RECONCILED BY FLUX \u2022 home-automation/home-assistant"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One pod, two routes, a login at each door",
+    "steps": [
+      {
+        "icon": "shield-check",
+        "title": "Sign in",
+        "text": "The install-oidc init container unpacks hass-oidc-auth into /config and checks its SHA-256. Users sign in through Authentik; local login stays as the fallback.",
+        "scene": "a padlock stamped onto a glowing login card"
+      },
+      {
+        "icon": "house",
+        "title": "Serve",
+        "text": "Home Assistant listens on 8123. hass.${SECRET_DOMAIN} on envoy-external has no ExtAuth gate, so companion apps can finish their own token flows.",
+        "scene": "a house with a glowing door beside a globe"
+      },
+      {
+        "icon": "network",
+        "title": "Address",
+        "text": "Multus gives the pod net1 at 10.40.0.100 with no MAC pin, so IoT devices keep a stable IP across rollouts.",
+        "scene": "a fixed address pin on a circuit board"
+      },
+      {
+        "icon": "lock-keyhole",
+        "title": "Gate",
+        "text": "The code editor on envoy-internal sits behind SecurityPolicy hass-code-auth, so Authentik checks each request before it reaches the editor.",
+        "scene": "a gate with a keyhole in front of a code window"
+      },
+      {
+        "icon": "hard-drive",
+        "title": "Keep",
+        "text": "kopiur snapshots the config claim to R2 each day. Readiness checks /manifest.json inside the cluster, so the public route never decides health.",
+        "scene": "snapshot cards flowing into a cloud bucket"
+      }
+    ],
+    "facts": [
+      {
+        "value": "8123",
+        "label": "Home Assistant HTTP port"
+      },
+      {
+        "value": "768Mi",
+        "label": "memory request, about 2x peak"
+      },
+      {
+        "value": "2 GI",
+        "label": "memory limit"
+      },
+      {
+        "value": "5 GI",
+        "label": "config claim"
+      }
+    ]
+  },
+  "art": {
+    "about": "how Home Assistant signs in through Authentik and reaches the IoT VLAN",
+    "title": "How Home Assistant reaches the IoT VLAN",
+    "model": "gpt",
+    "subject": ""
+  }
+}

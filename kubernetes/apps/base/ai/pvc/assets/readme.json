@@ -1,0 +1,63 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 SHARED STORAGE",
+    "title": "ai-pvc",
+    "tagline": "Two 100 Gi CephFS claims that Hermes and Samba share, deliberately without a backup.",
+    "chips": [
+      "RWX",
+      "CEPHFS",
+      "2 x 100 GI",
+      "UNBACKED BY DESIGN"
+    ],
+    "icon": "hard-drive",
+    "status": "RECONCILED BY FLUX \u2022 ai/pvc"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "Two shared claims, no second copy",
+    "steps": [
+      {
+        "icon": "hard-drive",
+        "title": "Claim",
+        "text": "Two ReadWriteMany claims on ceph-filesystem-rwx: shared-files for scratch drops and shared-xml for the XML corpus.",
+        "scene": "two drive bays on a shared bus"
+      },
+      {
+        "icon": "folder-open",
+        "title": "Mount",
+        "text": "Hermes mounts shared-xml at /opt/xml and shared-files at /opt/files. Samba exports the same two claims over SMB, and several pods can write to each at once.",
+        "scene": "several hands reaching into one shared folder"
+      },
+      {
+        "icon": "shield-off",
+        "title": "Unbacked",
+        "text": "Neither claim has a kopiur include. The Mac holds the authoritative XML copy, and shared-files has no second copy at all.",
+        "scene": "a folder with no duplicate beside it"
+      }
+    ],
+    "facts": [
+      {
+        "value": "2",
+        "label": "shared claims"
+      },
+      {
+        "value": "100 GI",
+        "label": "each, RWX"
+      },
+      {
+        "value": "0",
+        "label": "kopiur includes"
+      },
+      {
+        "value": "RWX",
+        "label": "access mode"
+      }
+    ]
+  },
+  "art": {
+    "about": "two shared file claims",
+    "title": "ai-pvc",
+    "model": "gpt",
+    "subject": ""
+  }
+}

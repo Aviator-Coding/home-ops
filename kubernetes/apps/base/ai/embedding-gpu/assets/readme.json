@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 AI \u2022 EMBEDDINGS",
+    "title": "embedding-gpu",
+    "tagline": "Serves a local 1024-dimension embedding model from the shared Arc B70, behind a LiteLLM rate cap.",
+    "chips": [
+      "QWEN3 0.6B",
+      "1024 DIMS",
+      "LAST-TOKEN POOL",
+      "LOWEST PRIORITY"
+    ],
+    "icon": "scan-search",
+    "status": "RECONCILED BY FLUX \u2022 ai/embedding-gpu"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One embedder, sharing a card with chat",
+    "steps": [
+      {
+        "icon": "download",
+        "title": "Load",
+        "text": "The HelmRelease starts llama-server with the Qwen3-Embedding-0.6B GGUF at f16. The weights land on a 5 Gi claim, so a restart does not fetch them again.",
+        "scene": "a model file sliding into a slot on a card"
+      },
+      {
+        "icon": "cpu",
+        "title": "Share",
+        "text": "The pod takes one devic.es/b70 token on the single Arc B70. Chat holds the card's memory, so the embedder only gets what chat leaves.",
+        "scene": "two tenants sharing one circuit board"
+      },
+      {
+        "icon": "git-merge",
+        "title": "Embed",
+        "text": "POST /v1/embeddings runs with last-token pooling, two parallel slots and a 512-token context, one vector per input.",
+        "scene": "text tokens flowing into a vector bar"
+      },
+      {
+        "icon": "shield-check",
+        "title": "Prove",
+        "text": "Readiness and liveness send a probe and fail on a null or all-zero vector. A NaN embedding returns HTTP 200 with a green /health, so /health alone is not enough.",
+        "scene": "a probe passing through a filter"
+      },
+      {
+        "icon": "gauge",
+        "title": "Throttle",
+        "text": "LiteLLM caps embedding-local at 60 requests a minute and 8 in flight. Excess calls get an immediate 429 instead of queueing on the card.",
+        "scene": "a valve regulating a stream"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1024",
+        "label": "vector dimensions"
+      },
+      {
+        "value": "512",
+        "label": "token context"
+      },
+      {
+        "value": "60 RPM",
+        "label": "LiteLLM rpm cap"
+      },
+      {
+        "value": "-10",
+        "label": "priority, never preempts"
+      }
+    ]
+  },
+  "art": {
+    "about": "a local embedding server that shares one GPU with a chat model and is rate-limited by a proxy",
+    "title": "How embedding-gpu serves vectors on a shared card",
+    "model": "gpt",
+    "subject": ""
+  }
+}

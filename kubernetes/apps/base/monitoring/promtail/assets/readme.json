@@ -1,0 +1,75 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 LOGS \u2022 PROMTAIL",
+    "title": "promtail",
+    "tagline": "Tails every container log on every node, labels it with pod, node and Ceph daemon identity, and pushes it to Loki.",
+    "chips": [
+      "ONE PER NODE",
+      "PUSH TO LOKI",
+      "CEPH DAEMON LABELS",
+      "PROM METRICS"
+    ],
+    "icon": "scan-line",
+    "status": "RECONCILED BY FLUX \u2022 monitoring/promtail"
+  },
+  "art": {
+    "about": "how container log files become labelled log batches in Loki",
+    "title": "How promtail ships logs to Loki",
+    "model": "gpt",
+    "subject": ""
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "From a log file to a labelled stream",
+    "steps": [
+      {
+        "icon": "scan-search",
+        "title": "Discover",
+        "text": "The DaemonSet runs on every node, tolerating the PreferNoSchedule dedicated taint on talos-3. It tails each pod's log file on its node.",
+        "scene": "a small agent on each server rack"
+      },
+      {
+        "icon": "filter",
+        "title": "Parse",
+        "text": "The CRI stage reads timestamps and streams. Relabels add the node, the namespace and, for rook-ceph, the daemon type and ID.",
+        "scene": "log lines sorted into three plain coloured trays, no text or labels on the trays"
+      },
+      {
+        "icon": "package",
+        "title": "Batch",
+        "text": "A batch flushes after 1 s or 1 MiB. Failed pushes back off from 500 ms to 5 min, for up to 10 retries.",
+        "scene": "crates of log lines on a conveyor belt"
+      },
+      {
+        "icon": "send",
+        "title": "Push",
+        "text": "Pushes to loki-headless on port 3100 with an empty tenant ID, because Loki runs with auth disabled.",
+        "scene": "a data packet travelling to a stacked database"
+      },
+      {
+        "icon": "bell",
+        "title": "Watch",
+        "text": "Its own metrics feed two alerts: more than 10% request errors, and files with more than 1 GB unread.",
+        "scene": "a meter needle beside a warning light"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1 S",
+        "label": "batch wait"
+      },
+      {
+        "value": "1 MIB",
+        "label": "batch size before a push"
+      },
+      {
+        "value": "10",
+        "label": "retries before a batch drops"
+      },
+      {
+        "value": "256 MI",
+        "label": "memory limit"
+      }
+    ]
+  }
+}

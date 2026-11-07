@@ -1,0 +1,61 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 FLUX \u2022 OPERATOR",
+    "title": "flux-operator",
+    "tagline": "Runs the Flux Operator that owns the FluxInstance, so the Flux controllers are declared in one object and upgraded by one chart.",
+    "chips": [
+      "HELM \u2022 OCI",
+      "SERVICE MONITOR",
+      "DNS REPLIES ADMITTED"
+    ],
+    "icon": "boxes",
+    "status": "RECONCILED BY FLUX \u2022 flux-system/flux-operator"
+  },
+  "art": {
+    "about": "an operator that installs and upgrades Flux controllers",
+    "title": "The Flux Operator",
+    "model": "gpt",
+    "subject": "",
+    "quality": "medium"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "One operator reads one FluxInstance",
+    "steps": [
+      {
+        "icon": "package",
+        "title": "Install",
+        "text": "Flux installs the flux-operator chart, which runs one Deployment and its CRDs in flux-system.",
+        "scene": "a sealed package unpacking into a single cube"
+      },
+      {
+        "icon": "refresh-cw",
+        "title": "Reconcile",
+        "text": "The operator reads the FluxInstance named flux and installs or upgrades the controllers it declares.",
+        "scene": "a gear turning a stack of controller cards"
+      },
+      {
+        "icon": "network",
+        "title": "Admit",
+        "text": "A supplemental NetworkPolicy admits DNS replies, which the chart policy alone would drop.",
+        "scene": "a network node with a gate on one link"
+      },
+      {
+        "icon": "activity",
+        "title": "Measure",
+        "text": "A ServiceMonitor scrapes the operator. The flux-instance alerts read the series that Flux exports.",
+        "scene": "a rising signal line over a dashboard grid"
+      }
+    ],
+    "facts": [
+      {
+        "value": "1",
+        "label": "operator Deployment"
+      },
+      {
+        "value": "ON",
+        "label": "ServiceMonitor"
+      }
+    ]
+  }
+}

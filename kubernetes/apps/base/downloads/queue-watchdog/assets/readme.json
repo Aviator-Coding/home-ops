@@ -1,0 +1,63 @@
+{
+  "banner": {
+    "eyebrow": "HOME-OPS \u2022 DOWNLOADS \u2022 WATCHDOG",
+    "title": "queue-watchdog",
+    "tagline": "Fails its CronJob when a Radarr, Sonarr or Lidarr queue item has been waiting for more than 24 hours, so KubeJobFailed pages on a stuck queue.",
+    "chips": [
+      "EVERY 30 MIN",
+      "24 H STALE RULE",
+      "EXIT 1 OR 2",
+      "PYTHON STDLIB"
+    ],
+    "icon": "scan-eye",
+    "status": "RECONCILED BY FLUX \u2022 downloads/queue-watchdog"
+  },
+  "explainer": {
+    "eyebrow": "HOW IT WORKS",
+    "title": "A failed Job is the alert",
+    "steps": [
+      {
+        "icon": "timer",
+        "title": "Schedule",
+        "text": "A CronJob fires every 30 minutes with Forbid concurrency and a 600 s deadline, so one stuck pod cannot block the next run.",
+        "scene": "a clock face above a row of job tiles"
+      },
+      {
+        "icon": "scan-eye",
+        "title": "Read",
+        "text": "The script reads the Radarr v3, Sonarr v3 and Lidarr v1 queues, one page of up to 1000 records each, with keys from the secret.",
+        "scene": "an eye scanning three stacked queue trays"
+      },
+      {
+        "icon": "clock",
+        "title": "Judge",
+        "text": "An item added more than 24 hours ago is stale. A queue it cannot read counts as an error, never as a healthy zero.",
+        "scene": "an hourglass beside a tray with a red marker"
+      },
+      {
+        "icon": "bell",
+        "title": "Exit",
+        "text": "Exit 0 means healthy, 1 means a stale item, 2 means a queue was unreadable. A failed Job feeds the existing KubeJobFailed alert.",
+        "scene": "a warning beacon lit on a job tile"
+      }
+    ],
+    "facts": [
+      {
+        "value": "30 MIN",
+        "label": "schedule"
+      },
+      {
+        "value": "24 H",
+        "label": "stale threshold"
+      },
+      {
+        "value": "64 MB",
+        "label": "memory limit"
+      },
+      {
+        "value": "0 PVC",
+        "label": "no state, nothing to back up"
+      }
+    ]
+  }
+}
