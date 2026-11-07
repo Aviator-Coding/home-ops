@@ -1,0 +1,36 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/gateway.networking.k8s.io/httproute_v1.json
+# Internal only, behind Authentik ExtAuth (./securitypolicy.yaml): Hubble UI has
+# no login of its own and shows every flow in the cluster. The Gatus check goes
+# to the in-cluster Service, because the ext_authz route answers 302 before the
+# backend and would stay green through an outage (skill observability).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: &app hubble
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/description: Cilium network flows
+    gethomepage.dev/group: observe
+    gethomepage.dev/icon: sh-cilium
+    gethomepage.dev/name: hubble
+    gethomepage.dev/app: *app
+    gethomepage.dev/pod-selector: k8s-app=hubble-ui
+    external-dns.kubernetes.io/target: "internal.${SECRET_DOMAIN}"
+    gatus.home-operations.com/endpoint: |-
+      url: http://hubble-ui.kube-system.svc.cluster.local/
+      conditions: ["[STATUS] == 200"]
+      ui:
+        hide-url: true
+spec:
+  hostnames:
+    - "hubble.${SECRET_DOMAIN}"
+  parentRefs:
+    - name: envoy-internal
+      namespace: network
+      sectionName: https
+  rules:
+    - backendRefs:
+        - name: hubble-ui
+          namespace: kube-system
+          port: 80

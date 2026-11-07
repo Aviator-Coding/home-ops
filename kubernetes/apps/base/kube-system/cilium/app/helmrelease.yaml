@@ -35,6 +35,14 @@ spec:
     bpfClockProbe: true
     bgpControlPlane:
       enabled: true
+    # hubble-generate-certs Job and CronJob (hubble.tls.auto.method: cronJob).
+    certgen:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
     cgroup:
       automount:
         enabled: false
@@ -80,8 +88,63 @@ spec:
     # bond0.90 here) - see ./hostpolicy-ceph.yaml for the full safety argument.
     hostFirewall:
       enabled: true
+    # Hubble: relay, UI (app/httproute.yaml, Authentik SSO) and metrics. Flipping
+    # hubble.enabled rolls the agent DaemonSet (cilium-config checksum).
     hubble:
-      enabled: false
+      enabled: true
+      metrics:
+        # httpV2 stays empty until a pod gets L7 visibility. IP labels left out for cardinality.
+        enabled:
+          - dns:query;ignoreAAAA
+          - drop
+          - tcp
+          - flow
+          - port-distribution
+          - icmp
+          - httpV2:labelsContext=source_namespace,source_workload,destination_namespace,destination_workload,traffic_direction
+        serviceMonitor:
+          enabled: true
+        dashboards:
+          enabled: true
+          annotations:
+            grafana_folder: Cilium
+      relay:
+        enabled: true
+        rollOutPods: true
+        prometheus:
+          enabled: true
+          serviceMonitor:
+            enabled: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+      # cronJob, not the default helm: the helm method reuses the existing leaf
+      # certs via lookup and never renews them, so they expire after
+      # certValidityDuration (365d). certgen renews every 4 months, and the
+      # Secrets stay out of the release manifest, so no driftDetection ignore.
+      tls:
+        auto:
+          method: cronJob
+      ui:
+        enabled: true
+        rollOutPods: true
+        backend:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+        frontend:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
     ipam:
       mode: kubernetes
     ipv4NativeRoutingCIDR: "10.42.0.0/16"

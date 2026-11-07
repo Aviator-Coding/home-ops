@@ -31,6 +31,10 @@ spec:
     - group: gateway.envoyproxy.io
       kind: SecurityPolicy
       namespace: flux-system
+    # kube-system/hubble-auth (Hubble UI route).
+    - group: gateway.envoyproxy.io
+      kind: SecurityPolicy
+      namespace: kube-system
   to:
     - group: ""
       kind: Service
