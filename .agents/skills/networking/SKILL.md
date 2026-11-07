@@ -1,6 +1,6 @@
 ---
 name: networking
-description: "Read before adding or editing an HTTPRoute, Gateway, HTTPRouteFilter, SecurityPolicy, external-dns annotation, LoadBalancer IP/BGP setting, NetworkPolicy or CiliumNetworkPolicy, or when a hostname is unreachable or DNS resolves wrong. Covers the DNS target coming from the parent Gateway, hand-made UniFi records, DNS-reply port:53 rules that never match, and supplementing chart-owned policies."
+description: "Read before adding or editing an HTTPRoute, Gateway, HTTPRouteFilter, SecurityPolicy, external-dns annotation, LB IP/BGP setting, NetworkPolicy or CiliumNetworkPolicy, or when a hostname is unreachable or DNS resolves wrong. Covers the DNS target coming from the parent Gateway, hand-made UniFi records, no-port reply rules (DNS, same-node Service replies, cilium#47913) and chart-owned policies."
 ---
 
 # Networking: Gateway API, DNS, BGP and NetworkPolicy
@@ -28,6 +28,15 @@ Host firewall policy is skill `cilium-host-policy`. ExtAuth ownership is skill
    53, so `port: 53` cannot admit it. Drop the `ports:` restriction on the
    from-kube-dns rule. Source-port filtering is not expressible in
    `networking.k8s.io/v1`.
+   **DNS is the first instance of a general rule: while cilium/cilium#47913 is
+   open, every Service peer a protected pod connects to needs an ingress rule
+   with no `toPorts`.** With netkit, endpoint routes and host-namespace-only
+   socket LB, a reply from a backend on the client's own node is checked
+   against the client's ingress a second time, after reverse NAT, with the
+   ClusterIP as source. It misses conntrack and drops as CT_NEW (`INGRESS
+   DENIED (TCP Flags: SYN, ACK)`). Egress allows do not help. Peers so far:
+   CoreDNS, dragonfly, postgres-18, litellm, searxng, the envoy-internal LB
+   IP, kube-apiserver. [dns-ownership.md](references/dns-ownership.md)
 4. **Chart-owned policies get a supplemental NetworkPolicy**, same
    `podSelector`. NetworkPolicies on the same pod OR-combine. Do not disable
    the chart policy. Shared dragonfly policy:
@@ -67,7 +76,7 @@ Host firewall policy is skill `cilium-host-policy`. ExtAuth ownership is skill
 ## Procedures
 
 - Gateway, filter, chart path: [envoy-gateway.md](references/envoy-gateway.md).
-- DNS ownership and the reply-port rule: [dns-ownership.md](references/dns-ownership.md).
+- DNS ownership, the reply-port rule and same-node Service replies (#47913): [dns-ownership.md](references/dns-ownership.md).
 - BGP, FRR, pinned LB IPs: [bgp-unifi.md](references/bgp-unifi.md).
 - Plex ingress CiliumNetworkPolicy: [plex-ingress-policy.md](references/plex-ingress-policy.md).
 - `task network:*`: [diagnostics.md](references/diagnostics.md).
@@ -78,4 +87,7 @@ Host firewall policy is skill `cilium-host-policy`. ExtAuth ownership is skill
   `curl -H 'Accept: application/external.dns.webhook+json;version=1' localhost:8888/records`.
 - A new NetworkPolicy: `cilium monitor --type drop` shows the destination
   port of a dropped DNS reply (ephemeral, not 53).
+- A new CiliumNetworkPolicy: `hubble observe --verdict DROPPED --namespace <ns>`
+  shows no `Policy denied` SYN,ACK from a Service peer. The #47913 signature
+  is in [dns-ownership.md](references/dns-ownership.md).
 - BGP: UniFi `vtysh` `show bgp summary` (FRR syntax, not Cisco `show ip bgp`).

@@ -95,6 +95,7 @@ Each is a warning needed before deciding to touch the subsystem; detail is in th
 **Network**
 - **NEVER add a `CiliumClusterwideNetworkPolicy` with a `nodeSelector` and ingress unless `enableDefaultDeny.ingress` is false, and the selector label must survive onto the host endpoint** (`kubernetes.io/os`, `kubernetes.io/hostname` are stripped). Skill `cilium-host-policy`.
 - **A NetworkPolicy `ports:` entry matches the destination port, so `port: 53` never admits a DNS reply.** Skill `networking`.
+- **A Cilium bump carrying cilium/cilium#47914 refuses to start the agents with our netkit + endpoint routes + L7 proxy, so land `l7Proxy: false` first; until then a CiliumNetworkPolicy admits every Service peer's replies with no `toPorts` (#47913).** Skills `renovate-review`, `networking`.
 
 **AI and GPU**
 - **NEVER rename a DRM device node with `generic-device-plugin`'s `mountPath`, and never ship a GPU change without the VA-API check.** VA-API consumers use `devic.es/b70-vaapi`. No DRA migration, never `adminAccess: true`. Skill `intel-gpu`.

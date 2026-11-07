@@ -48,6 +48,45 @@ the no-port form.
 `cilium monitor --type drop` shows the ephemeral destination port on a dropped
 reply.
 
+## Same-node Service replies (cilium/cilium#47913)
+
+The CoreDNS correlation failure above is one case of an open upstream bug,
+[cilium/cilium#47913](https://github.com/cilium/cilium/issues/47913). It
+needs netkit (`datapath-mode: netkit`), endpoint routes and
+`bpf-lb-sock-hostns-only: true`, all live here. When a Service backend runs
+on the client's own node, local delivery enforces the client's ingress policy
+twice. The second pass runs after reverse NAT, so the reply's source is the
+ClusterIP, not the backend. That misses the backend-keyed conntrack entry and
+the reply is a new flow: `Policy denied`. Pod-to-pod traffic without a
+Service, and backends on another node, are not affected.
+
+Rule while it is open: a CiliumNetworkPolicy (or NetworkPolicy) with
+ingress rules must admit every Service peer the pod connects to with a
+`fromEndpoints` rule and no `toPorts`, commented
+`# reply traffic: cilium/cilium#47913, remove toPorts-free rule when fixed`.
+That covers CoreDNS, databases, dragonfly, LiteLLM, LoadBalancer IPs whose
+backends are pods (envoy-internal), and `fromEntities: kube-apiserver` for
+the `kubernetes` Service. An egress allow toward the peer does not help; the
+drop is on ingress.
+
+Signature on the client's node:
+
+```bash
+# Hubble: the backend's Service port as source, a SYN,ACK, no verdict match
+selfhosted/paperless-ngx-dragonfly:6379 <> selfhosted/paperless-ngx-...:45876 policy-verdict:none INGRESS DENIED (TCP Flags: SYN, ACK)
+# cilium-dbg bpf ct list global: a spurious IN entry from the ClusterIP, RevNAT=0,
+# next to the legitimate OUT entry to the backend pod IP with a RevNAT id
+TCP IN 10.43.245.253:6379 -> 10.42.2.45:<eph> ... RevNAT=0 SourceSecurityID=72166
+TCP OUT 10.42.2.45:<eph> -> 10.42.2.120:6379 ... RevNAT=182
+```
+
+The fix, cilium/cilium#47914, makes the agent reject netkit + endpoint routes
++ L7 proxy. Review a Cilium bump for it: skill `renovate-review`.
+
+Incident, 2026-11-07: six CiliumNetworkPolicies (#2425-#2430) merged without
+peer reply rules; paperless-ngx login hung on dragonfly replies on talos-1, and
+all six were reverted in #2431.
+
 ## Staleness alert
 
 `ExternalDNSStale` in `network/cloudflare-dns/app/prometheusrule.yaml` is
