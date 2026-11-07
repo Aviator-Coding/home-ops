@@ -28,6 +28,8 @@ spec:
         seccompProfile: {type: RuntimeDefault}
     controllers:
       shelfmark:
+        # Left off the Deployment: KEDA owns it (components/keda/nfs-scaler).
+        replicas: null
         containers:
           app:
             image:

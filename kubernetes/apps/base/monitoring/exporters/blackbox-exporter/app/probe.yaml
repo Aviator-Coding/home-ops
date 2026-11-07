@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/probe_v1.json
+# TCP connect to the NAS NFS port, the host the downloads apps mount
+# (nas.${SECRET_DOMAIN}). job="nas-nfs" is what NASNFSExportDown selects.
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: nas-nfs
+spec:
+  jobName: nas-nfs
+  module: tcp_connect
+  interval: 30s
+  scrapeTimeout: 10s
+  prober:
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      static:
+        - nas.${SECRET_DOMAIN}:2049

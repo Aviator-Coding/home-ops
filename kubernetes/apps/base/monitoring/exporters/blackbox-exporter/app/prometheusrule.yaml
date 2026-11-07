@@ -1,0 +1,34 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/monitoring.coreos.com/prometheusrule_v1.json
+# NAS NFS reachability from inside the cluster (Probe nas-nfs).
+# Runbook: kubernetes/apps/base/monitoring/exporters/blackbox-exporter/README.md
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: blackbox-exporter-rules
+spec:
+  groups:
+    - name: nas-nfs.rules
+      rules:
+        - alert: NASNFSExportDown
+          expr: |-
+            probe_success{job="nas-nfs"} == 0
+          for: 5m
+          annotations:
+            summary: >-
+              The NAS NFS export {{ $labels.instance }} has refused TCP
+              connections from the cluster for 5m. Pods that mount it hang
+              in ContainerCreating or on I/O.
+          labels:
+            severity: critical
+        # Without the series NASNFSExportDown can never fire.
+        - alert: NASNFSProbeMissing
+          expr: |-
+            absent(probe_success{job="nas-nfs"})
+          for: 15m
+          annotations:
+            summary: >-
+              No probe_success series for job nas-nfs: the blackbox exporter
+              or the nas-nfs Probe is gone, so a NAS NFS outage goes unseen.
+          labels:
+            severity: warning

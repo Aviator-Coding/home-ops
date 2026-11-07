@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/keda.sh/scaledobject_v1alpha1.json
+# Scales Deployment ${APP} to 0 while the NAS NFS export is unreachable and back
+# to 1 when it returns. Signal: Probe monitoring/nas-nfs (blackbox tcp_connect).
+# The HelmRelease sets controllers.<app>.replicas: null so Helm never resets it.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ${APP}-nfs
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ${APP}
+  minReplicaCount: 0
+  maxReplicaCount: 1
+  # 30s = the Probe interval; polling faster only re-reads the same sample.
+  pollingInterval: 30
+  # Scale to 0 only after 5m with no healthy poll, the NASNFSExportDown window.
+  cooldownPeriod: 300
+  advanced:
+    # Deleting this ScaledObject puts the Deployment back to its replica count.
+    restoreToOriginalReplicaCount: true
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        # min_over_time: back up only after 2m of clean probes, not on the
+        # first success while the NAS is still booting.
+        query: min(min_over_time(probe_success{job="nas-nfs"}[2m]))
+        threshold: "1"
+        activationThreshold: "0.5"
+        # No series (exporter or Prometheus down) is an error, which KEDA
+        # treats as "change nothing", never as 0 and a scale-down.
+        ignoreNullValues: "false"

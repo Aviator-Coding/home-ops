@@ -17,6 +17,8 @@ spec:
   values:
     controllers:
       radarr:
+        # Left off the Deployment: KEDA owns it (components/keda/nfs-scaler).
+        replicas: null
         annotations:
           reloader.stakater.com/auto: "true"
 
