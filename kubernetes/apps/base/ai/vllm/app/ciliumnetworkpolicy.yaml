@@ -1,0 +1,43 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vllm
+spec:
+  # llama-server takes no API key, so only LiteLLM may reach it; every consumer in git (Hermes,
+  # OpenCode, repo-wiki, Linkwarden) uses chat-local via LiteLLM. Ingress only: the -hf download
+  # on first boot needs open egress. Selects the chat controller; vllm-embed (replicas 0) is not
+  # covered. port-forward (bench, AGENTS.md) enters the pod via the kubelet and is not affected.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vllm
+      app.kubernetes.io/controller: vllm
+  ingress:
+    # kubelet httpGet probes on :8000 (/health) come from the local host.
+    - fromEntities:
+        - host
+    # LiteLLM, the apiBase of chat-local, chat-ha, chat-local-classifier and demo-priced-local.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ai
+            app.kubernetes.io/name: litellm
+            app.kubernetes.io/instance: litellm
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    # Prometheus scrape of /metrics (ServiceMonitor vllm).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    # DNS replies from CoreDNS (talos-3 runs a replica). No toPorts: a reply lands on an ephemeral port.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
