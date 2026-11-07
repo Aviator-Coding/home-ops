@@ -56,7 +56,6 @@ spec:
               # does not support and which hangs before binding its HTTP port.
               repository: ghcr.io/linuxserver/bazarr
               tag: version-v1.6.0@sha256:84b6f05a7a4194fafe5a0bec062d32f6ae9ea74db33d43d678cb9a3191f31c24
-              digest: sha256:ac284d3fda9ee7da8b15197dc51f0d7a2a1da98549bee99a3d924d3e94a5e7ed
             env:
               # Tell the s6-overlay init to skip its root-only usermod/chown steps:
               # the pod already runs as the target non-root UID with a read-only

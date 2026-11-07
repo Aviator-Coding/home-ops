@@ -72,7 +72,9 @@ manual-dispatch only (no schedule, no `push` trigger), so it never runs beside t
     kubernetes managers only; rsshub, browserless/chrome and `quay.io/ceph/ceph`
     excluded, rule in `overrides.json5`). Pins land in one "Pin Dependencies"
     PR and automerge as `pinDigest`. A pin changes the pod spec, so each
-    newly pinned workload rolls once with the same image.
+    newly pinned workload rolls once with the same image. Digests live in
+    `tag: x@sha256:...`; never use app-template's separate `digest:` field
+    alongside (it renders a double `@sha256` and the kubelet rejects it).
 
 ## Where things live
 
