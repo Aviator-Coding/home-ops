@@ -50,7 +50,16 @@ spec:
                   failureThreshold: 3
               readiness: *probes
               startup:
-                enabled: false
+                enabled: true
+                custom: true
+                spec:
+                  httpGet:
+                    path: /rest/noauth/health
+                    port: *port
+                  initialDelaySeconds: 0
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 30
 
     defaultPodOptions:
       securityContext:
