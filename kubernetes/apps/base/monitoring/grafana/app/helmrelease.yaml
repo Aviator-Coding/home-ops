@@ -20,6 +20,16 @@ spec:
 
     replicas: 1
 
+    # Read-only root. /var/lib/grafana (the chart's `storage` emptyDir, persistence is off) holds
+    # grafana.db, the plugins dir and the downloaded dashboards; /var/lib/grafana-search is the
+    # chart's `search` emptyDir. /tmp is the only extra writable path.
+    containerSecurityContext:
+      readOnlyRootFilesystem: true
+
+    extraEmptyDirMounts:
+      - name: tmp
+        mountPath: /tmp
+
     dashboardProviders:
       dashboardproviders.yaml:
         apiVersion: 1
@@ -540,6 +550,9 @@ spec:
         default_home_dashboard_path: /var/lib/grafana/dashboards/default/home-dashboard.json
       news:
         news_feed_enabled: false
+      # Core-plugin auto-update writes outside the plugins dir and fails on a read-only rootfs.
+      plugins:
+        preinstall_auto_update: false
     imageRenderer:
       enabled: true
 
