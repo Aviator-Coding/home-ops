@@ -1,0 +1,31 @@
+---
+# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/cilium.io/ciliumnetworkpolicy_v2.json
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: paperless-ngx
+spec:
+  # Ingress fence only: egress (postgres-18, dragonfly, DNS) stays open. Skill `networking`.
+  # The controller label keeps the operator-managed paperless-ngx-dragonfly pods out of this selector.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: paperless-ngx
+      app.kubernetes.io/controller: paperless-ngx
+  ingress:
+    # kubelet httpGet probes on :8000 come from the local host.
+    - fromEntities:
+        - host
+    # The docs HTTPRoute (envoy-internal only). Gatus probes through this route too.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: network
+            gateway.envoyproxy.io/owning-gateway-name: envoy-internal
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    # DNS replies from CoreDNS. No toPorts on purpose: a reply lands on an ephemeral port, never 53.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
