@@ -26,10 +26,13 @@ spec:
       namespace: security
     - name: kopiur-repository
       namespace: system
+    - name: keda
+      namespace: monitoring
   components:
     # Proof: proof-ledger.md row 6.
     - ../../../../../components/kopiur
     - ../../../../../components/kopiur/pvc
+    - ../../../../../components/keda/nfs-scaler
   postBuild:
     substituteFrom:
       - name: cluster-secrets
