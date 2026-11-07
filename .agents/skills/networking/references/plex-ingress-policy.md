@@ -41,7 +41,7 @@ it. This closes the unauthenticated pod-network path and changes no Plex auth.
 - **CoreDNS replies** (`kube-system`, `k8s-app: kube-dns`), with no `ports:`
   restriction on purpose: see tripwire 3 in `SKILL.md`. Cilium reply-conntrack
   also fails to match a DNS reply to its request when the client pod's node
-  hosts a CoreDNS replica.
+  hosts a CoreDNS replica (cilium/cilium#47913, [dns-ownership.md](dns-ownership.md)).
 
 A new in-cluster consumer of Plex needs its own `fromEndpoints` entry and its
 own Plex token.

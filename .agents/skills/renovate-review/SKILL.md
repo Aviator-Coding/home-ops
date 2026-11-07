@@ -21,6 +21,12 @@ gh pr list --author app/mortyops --state open --json number,title,labels \
 - Treat the `Kubernetes`, `Talos`, `Rook-Ceph`, `Cilium` and `Flux Operator` groups
   (`.renovate/groups.json5`) with extra care whatever their label: a `talosupgrade.yaml` or
   tuppr bump is an unattended node upgrade (skill `talos-nodes`).
+- A Cilium bump that carries cilium/cilium#47914 (the fix for #47913, skill `networking`)
+  makes the agent refuse netkit + endpoint routes + L7 proxy. The live `cilium-config` has
+  `enable-l7-proxy: true` (chart default, unset in `helmrelease.yaml`), so every agent would
+  fail to start. Land `l7Proxy: false` (no L7 or FQDN policy exists) or
+  `endpointRoutes.enabled: false` in its own PR first. Search the release notes for 47914.
+  Once it is in, the no-port reply rules in the CiliumNetworkPolicies can go.
 - A Python minor (`.renovate/autoMerge.json5` never automerges it) is judged per consumer,
   not per version. Blocked: `.mise.toml` (CI installs litellm's test deps) and any image
   with native wheels until each dep ships wheels for it (litellm `requires-python`,
