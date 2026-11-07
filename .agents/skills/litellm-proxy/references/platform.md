@@ -61,7 +61,7 @@ Scope rules (captain decisions B4/D4, still binding):
 - **Postgres**: LiteLLM cannot declare a budgeted or rate-limited key from
   config. Keys exist only through `/key/generate`, and without a
   `DATABASE_URL` they live in memory and vanish on restart. So the proxy
-  depends on the shared `postgres-17` CNPG cluster (`litellm` database).
+  depends on the shared `postgres-18` CNPG cluster (`litellm` database).
 - **Dragonfly** (`litellm-dragonfly`, `kubernetes/components/dragonfly` on the
   overlay): LiteLLM runs several workers inside one pod, so without a shared
   Redis-API store rate limits, budgets and router state are per worker and

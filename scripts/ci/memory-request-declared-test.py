@@ -68,7 +68,7 @@ block can enter the cluster" - only these two shapes):
   which case the merge is complete and correct. The gate cannot resolve that
   ambiguity from the patch text alone (the target lives in an external chart
   in the flux-instance case above), so a patch-embedded site is handled the
-  same way as cloudnative-pg's cluster-17 below: verified once by hand
+  same way as an EXEMPT entry below: verified once by hand
   against the live object, then held open via a documented EXEMPT entry
   rather than silently passed or permanently blocked.
 
@@ -95,16 +95,6 @@ KUBE = REPO / "kubernetes"
 # Documented exemptions. An entry here means "request == limit is correct and
 # leaving it implicit is the lesser evil", never "not yet looked at".
 EXEMPT: dict[str, str] = {
-    # CNPG Cluster. 14d peak 3,610 Mi against this 4Gi limit leaves 12% of
-    # headroom, so request == limit is the right answer and there is nothing to
-    # reclaim. It is left IMPLICIT because writing it out changes the Cluster
-    # spec and can trigger a CNPG rolling switchover of the cluster's shared
-    # postgres for a change with zero effect on the rendered Pod. Revisit the
-    # next time this object is being rolled for another reason.
-    "kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml": (
-        "CNPG Cluster; request==limit is correct (peak 3,610Mi vs 4Gi) and "
-        "making it explicit risks a switchover for no effect"
-    ),
     # Strategic-merge patch (values.instance.kustomize.patches[].patch) that
     # sets limits.memory: 2Gi on the flux-operator-managed manager container
     # of kustomize-controller/helm-controller/source-controller, with no

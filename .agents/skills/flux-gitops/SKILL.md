@@ -21,7 +21,7 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
    `healthCheckExprs` run only for objects already in that assessment set.
    `wait: true` is correct for a pure dependency gate that others `dependsOn`
    (checked 2026-09-30, 20 live): CRDs (`toolhive-crds`),
-   operators and clusters (`cloudnative-pg`, `postgres-cluster-17`,
+   operators and clusters (`cloudnative-pg`, `postgres-cluster-18`,
    `dragonfly-operator`, `emqx-*`, `surrealdb`, `keda`), secret stores
    (`external-secrets`, `onepassword-store`, `database-secrets`), `cluster-meta`,
    `multus-networks`, `certificates-import`, `cloudflare-dns`, `coder`. None of them includes `components/kopiur` or

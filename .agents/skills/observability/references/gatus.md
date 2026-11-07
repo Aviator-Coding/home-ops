@@ -9,9 +9,9 @@ Gatus serves two sources:
 `gatus.io/enabled` on a ConfigMap is dead. The sidecar RBAC watches Services,
 Gateways and HTTPRoutes, not ConfigMaps, and a pod cannot mount another
 namespace's ConfigMap. Two leftovers still carry the label and still exist in
-the cluster: `database/emqx-gatus-ep` and `database/postgres-17-gatus-ep`
+the cluster: `database/emqx-gatus-ep` and `database/postgres-18-gatus-ep`
 (from `database/emqx/cluster/gatus.yaml` and
-`database/cloudnative-pg/cluster-17/gatus.yaml`). They do not appear in
+`database/cloudnative-pg/cluster-18/gatus.yaml`). They do not appear in
 `GET /api/v1/endpoints/statuses`. Do not copy that pattern. A non-HTTPRoute
 check goes in `config.yaml` (see `Radarr Import Queue`).
 

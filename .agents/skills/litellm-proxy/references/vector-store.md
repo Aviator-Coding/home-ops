@@ -2,7 +2,7 @@
 
 LiteLLM's Vector Stores API with the `pg_vector` provider, served by
 `ai/litellm-pgvector` (BerriAI/litellm-pgvector, OpenAI-compatible) on the
-`litellm_pgvector` database of shared `postgres-17`. Store id `default`.
+`litellm_pgvector` database of shared `postgres-18`. Store id `default`.
 
 **Non-sensitive content only** (docs, references, repo knowledge; never
 personal documents or credentials). Captain decision "A with guardrail": the
@@ -105,8 +105,8 @@ stores share one table, so one model and width.
 
 The server has no delete endpoint: its OpenAPI lists only create/list store,
 search, `embeddings` and `embeddings/batch`. Remove a test or wrong row with
-psql on the CNPG primary (`kubectl -n database get cluster postgres-17` shows
-it; it moved to `postgres-17-5` during the live proof and moves on failover):
+psql on the CNPG primary (`kubectl -n database get cluster postgres-18` shows
+it; it moves on failover):
 
 ```bash
 kubectl -n database exec -it <primary-pod> -c postgres -- psql -d litellm_pgvector
@@ -119,7 +119,7 @@ Match the `metadata->>'source'` too, so a wrong id cannot delete another row.
 ## Data, credentials, health
 
 - Every ingested chunk and search query is sent to OpenRouter (Nebius or
-  DeepInfra) to be embedded; rows ride `postgres-17` Barman to the LAN NAS.
+  DeepInfra) to be embedded; rows ride `postgres-18` Barman Cloud to the LAN NAS.
 - Credentials: `litellm/app/pushsecret-pgvector.yaml` carries the one-time
   seed command (`kubectl create`, never `apply`) and rotation. It lives in the
   litellm app so the 1Password item exists before `litellm-pgvector` (which
@@ -131,9 +131,9 @@ Match the `metadata->>'source'` too, so a wrong id cannot delete another row.
   reports Completed. The schema container sets its own `PG*` in `env`.
 - The server image tag is content-addressed and published by the containers repo: set the
   HelmRelease tag to the tag it publishes.
-- The `vector` extension exists only because the shared postgres-17 image
-  (`tensorchord/cloudnative-pgvecto.rs`) ships pgvector; an image swap there
-  breaks the next db-init.
+- The `vector` extension exists only because the shared postgres-18 image
+  (the CNPG `standard` flavour) ships pgvector; a swap to a flavour without
+  it breaks the next db-init.
 - `EMBEDDING__MODEL` keeps the `openai/` prefix so the server embeds through
   this proxy with its own key (never `openrouter/`). No HTTPRoute: the write
   API uses one shared bearer key.

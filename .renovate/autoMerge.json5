@@ -124,7 +124,7 @@
     },
     {
       // MUST stay after the three blanket automerge rules. Exact package names only, so ghcr.io/cloudnative-pg/postgresql stays automerged. Skill `renovate`.
-      description: "Never auto merge CloudNativePG operator - 1.31.0 removes the in-tree barman backup the Postgres clusters use",
+      description: "Never auto merge CloudNativePG operator - an operator bump rolls the shared postgres-18 Cluster and the Barman Cloud plugin must stay compatible",
       matchPackageNames: [
         "ghcr.io/cloudnative-pg/charts/cloudnative-pg",
         "ghcr.io/cloudnative-pg/cloudnative-pg",

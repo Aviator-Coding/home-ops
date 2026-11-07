@@ -65,9 +65,6 @@ KNOWN_UNCAPTURED: dict[str, str] = {
     "kubernetes/apps/base/rook-ceph/rook-ceph/cluster/helmrelease.yaml:quay.io/ceph/ceph":
         "pre-existing: sits above the cephImage block key, so no value is on the next line; "
         "the customManager has never captured it",
-    "kubernetes/apps/base/database/cloudnative-pg/cluster-17/cluster-17.yaml:ghcr.io/tensorchord/cloudnative-pgvecto.rs":
-        "pre-existing: the trailing ` versioning=docker` field is not in the matchString, "
-        "so the customManager has never captured it",
 }
 
 # (path at HEAD, stripped functional line) -> reason. Scoped to one PR.
@@ -132,6 +129,10 @@ ALLOWED_REMOVALS: dict[tuple[str, str], str] = {
         "kubernetes/apps/base/downloads/radarr/app/helmrelease.yaml",
         "# renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr",
     ): "exportarr sidecar removed: the API key is not 20-32 alphanumeric, so it crash-looped.",
+    (
+        "kubernetes/apps/main/database/cloudnative-pg.yaml",
+        "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json",
+    ): "postgres-cluster-17 Kustomization document deleted: postgres-17 retired, every app is on postgres-18.",
     (
         "kubernetes/apps/main/media/calibre.yaml",
         "# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json",

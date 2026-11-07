@@ -33,8 +33,9 @@ image, scrape-target count).
    2174 of 2199 nodes with AOF and 200 of 2199 on the image's stock RDB-only
    durability.
 6. **A postgres-18 rebuild restores from its own archive.** `bootstrap` is
-   read only at creation; never put back the cutover's `initdb.import` (it
-   re-imports postgres-17 frozen at 2026-11-04 and looks healthy). Bump the
+   read only at creation; never put back the cutover's `initdb.import` (its
+   source postgres-17 is retired; the only other copy is the frozen
+   `postgres17-v5` archive). Bump the
    archiver `serverName` in the same commit. Apps get roles from
    `components/cnpg-database`, never a `postgres-init` container.
    [cnpg.md](references/cnpg.md#restore-shape)
@@ -44,7 +45,7 @@ image, scrape-target count).
 | What | Path |
 |---|---|
 | SurrealDB | `kubernetes/apps/base/database/surrealdb/` |
-| CNPG operator, clusters (`cluster-17`, `cluster-18`), pgAdmin | `kubernetes/apps/base/database/cloudnative-pg/` |
+| CNPG operator, cluster (`cluster-18`), pgAdmin | `kubernetes/apps/base/database/cloudnative-pg/` |
 | Barman offsite mirror (Backups owns the README) | `kubernetes/apps/base/database/cloudnative-pg/offsite-mirror/` |
 | EMQX | `kubernetes/apps/base/database/emqx/` |
 | Dragonfly operator | `kubernetes/apps/base/database/dragonfly/` |
@@ -62,7 +63,7 @@ image, scrape-target count).
 ## Verify
 
 - `task flux:test:all`.
-- CNPG: `kubectl -n database get cluster postgres-17 postgres-18` shows
+- CNPG: `kubectl -n database get cluster postgres-18` shows
   `readyInstances` and `ContinuousArchiving`, not only `Ready`.
 - Dragonfly: `up{job=~".*dragonfly.*"}` returns 10 series.
 - EMQX operator chart is still a 2.2.x tag.

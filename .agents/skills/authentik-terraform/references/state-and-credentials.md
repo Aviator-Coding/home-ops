@@ -119,7 +119,7 @@ Read-only `SELECT`s against Authentik's Postgres, never selecting
 
 ```bash
 PRIMARY=$(kubectl -n database get pods \
-  -l 'cnpg.io/cluster=postgres-17,role=primary' -o jsonpath='{.items[0].metadata.name}')
+  -l 'cnpg.io/cluster=postgres-18,role=primary' -o jsonpath='{.items[0].metadata.name}')
 kubectl -n database exec "$PRIMARY" -c postgres -- \
   psql -d authentik -A -F'|' -c "select id, name from authentik_core_provider order by id;"
 ```

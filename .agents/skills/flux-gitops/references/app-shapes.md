@@ -36,7 +36,7 @@ Flux path. Files that belong to the same deployable go in subdirectories
 2. **Family.** Several independently deployable pieces under one product
    (`operator/`, `cluster/`, `exporter/`). Each piece gets its own overlay
    Kustomization and `dependsOn` where one piece must precede another.
-   Example: `database/cloudnative-pg/{operator,dashboard,pgadmin,cluster-17}`.
+   Example: `database/cloudnative-pg/{operator,dashboard,pgadmin,cluster-18}`.
 3. **Parameterized instance.** The same chart, many named instances, nested
    under `app/<key>/<instance>/`. The only live case is
    `actions-runner-system/gha-runner-scale-set/app/skrumbach/{home-ops,ai-k8s-sandbox}`.

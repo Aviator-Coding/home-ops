@@ -14,13 +14,12 @@ deletion step below has run. Same shape as skill `ai-stack`
 | FalkorDB kopia snapshots, `ceph` and `r2` repositories | kept, frozen (no GFS pruning once the policy is gone) | kopiur `onPolicyDelete` / `onScheduleDelete: Retain` | expire per snapshot with kopia. Keep r2 indefinitely: it is the only copy once the PVC is gone |
 | FalkorDB `Snapshot` CRs | garbage-collected by the cascade; a count of 0 is the success path | none needed | never delete one by hand while its policy exists (skill `kopiur-backups` `retirement-and-removal.md`) |
 | DuckLake bucket `ducklake` on `ceph-objectstore` (Parquet files, 200G quota), OBC Secret and ConfigMap | kept | OBC annotation `kustomize.toolkit.fluxcd.io/prune: disabled` | `kubectl -n database delete obc ducklake` (`ceph-bucket` is `reclaimPolicy: Delete`: bucket and files go) |
-| DuckLake catalog: database and role `ducklake` on `postgres-17` | kept | created by the db-init Job, not a CNPG `Database` CR or managed role | `DROP DATABASE ducklake; DROP ROLE ducklake;` via `kubectl cnpg psql postgres-17 -n database`; barman backups age out by retention |
+| DuckLake catalog: database and role `ducklake` on `postgres-17` | gone with postgres-17 (retired 2026-11-07); never imported to postgres-18 | n/a | only copy is the `postgres17-v5` barman archive until it is deleted |
 | 1Password `ducklake`, `ducklake-ceph-bucket` (vault `Automation`) | kept | the PushSecrets were `deletionPolicy: None` | delete after the bucket and role are gone |
 | 1Password `falkordb` (hand-made, the ExternalSecret source) | kept | ESO never deletes a source item | delete in 1Password |
 | In-cluster Secrets `falkordb-secret`, `ducklake-secret`, `ducklake-db-password` | deleted (ESO `Owner`) | values live in 1Password | none |
 | DNS `falkordb`, `falkordb-browser` (UniFi) | removed by unifi-dns `policy: sync` | none | check for hand-made leftovers with no TXT twin |
 | LB IP `10.50.0.24` | released, free in the BGP pool | none | none |
-| `cluster-17` `serverAltDNSNames: postgres-17.${SECRET_DOMAIN}` | unchanged | general LAN name; editing the list reissues the shared cluster's certificate | none |
 | Authentik ReferenceGrant `database` entry | unchanged, no consumer now | harmless; the file is under `security/` | optional separate issue |
 
 The expected alert after the prune is `KopiurPolicyVanished` (warning) for

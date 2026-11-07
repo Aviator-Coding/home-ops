@@ -55,45 +55,6 @@ spec:
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: &app postgres-cluster-17
-  namespace: &namespace database
-spec:
-  commonMetadata:
-    labels:
-      app.kubernetes.io/name: *app
-  dependsOn:
-    - name: cloudnative-pg
-      namespace: database
-    - name: rook-ceph
-      namespace: rook-ceph
-    - name: external-secrets
-      namespace: security
-  # Operational health gate: readyInstances + ContinuousArchiving (not the Ready
-  # condition, which CNPG can latch False indefinitely even while the cluster
-  # serves reads/writes). readyInstances >= 1 is a floor; cluster-17 runs 3.
-  healthCheckExprs:
-    - apiVersion: postgresql.cnpg.io/v1
-      kind: Cluster
-      current: status.readyInstances >= 1 && status.conditions.filter(e, e.type == 'ContinuousArchiving').all(e, e.status == 'True')
-      failed: status.readyInstances < 1
-  interval: 30m
-  path: ./kubernetes/apps/base/database/cloudnative-pg/cluster-17
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: flux-system
-    namespace: flux-system
-  postBuild:
-    substituteFrom:
-      - name: cluster-secrets
-        kind: Secret
-  targetNamespace: *namespace
-  wait: true
----
-# yaml-language-server: $schema=https://kubernetes-schemas.pages.dev/kustomize.toolkit.fluxcd.io/kustomization_v1.json
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
   name: &app postgres-cluster-18
   namespace: &namespace database
 spec:
@@ -113,7 +74,9 @@ spec:
     # Instances sit on openebs-hostpath (cluster-18.yaml storageClass).
     - name: openebs-hostpath
       namespace: system
-  # Same gate as postgres-cluster-17: readyInstances + ContinuousArchiving, not Ready.
+  # Operational health gate: readyInstances + ContinuousArchiving (not the Ready
+  # condition, which CNPG can latch False indefinitely even while the cluster
+  # serves reads/writes). readyInstances >= 1 is a floor; cluster-18 runs 3.
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Cluster
