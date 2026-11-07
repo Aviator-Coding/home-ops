@@ -32,14 +32,14 @@ rebuilt Ceph has a new, empty `kopiur` bucket. The `ceph` `ClusterRepository` ke
 - The `r2` `ClusterRepository` is **connect-only** (`create.enabled: false`). A wrong endpoint,
   bucket or credential shows as `RepositoryNotInitialized` and `KopiurRepositoryNotReady`,
   never as a new, empty "r2".
-- The standing populators exist for the 26 claims on `components/kopiur/pvc` only. **3 more
+- The standing populators exist for the 26 claims on `components/kopiur/pvc` only. **6 more
   claims need a hand restore** (phase 4).
 
 What survives a full loss, off-cluster:
 
 | Store | Holds |
 |---|---|
-| Cloudflare R2 bucket `kopiur` | kopiur `r2` repository, all 31 backed-up claims (daily) |
+| Cloudflare R2 bucket `kopiur` | kopiur `r2` repository, all 32 backed-up claims (daily) |
 | LAN TrueNAS MinIO | CNPG barman archive for `database/postgres-17`; the retired VolSync `minio` restic repositories (no live claim since 2026-11-01) |
 | 1Password `Home-Lab` | bootstrap and Talos secrets (`vals`) |
 | 1Password `Homelab` | `kopiur-r2`, `kopiur-ceph`, `cluster`, and every other ExternalSecret source |
@@ -187,7 +187,7 @@ If the MinIO NAS is lost too, Postgres has no off-site copy (the offsite mirror 
    safe: the claims are bound (`TargetAlreadyBound`), and the Restores carry no finalizers and own
    no data.
 
-## Phase 4 - Hand restores for the 3 claims without a working populator
+## Phase 4 - Hand restores for the 6 claims without a working populator
 
 These apps start on empty volumes after a rebuild and nothing restores them:
 
@@ -196,6 +196,9 @@ These apps start on empty volumes after a rebuild and nothing restores them:
 | `database/surrealdb` | chart-owned PVC, no populator | `surrealdb-r2` | 65532:65532 | 2Gi |
 | `selfhosted/paperless-ngx-media` | chart-owned PVC, no populator | `paperless-ngx-media-r2` | 1000:1000 | 50Gi |
 | `selfhosted/syncthing-data` | plain PVC, no populator | `syncthing-data-r2` | 1000:1000 | 15Gi |
+| `media/wizarr` | app-template PVC (`retain: true`), no populator | `wizarr-r2` | 2000:2000 | 2Gi |
+| `downloads/cleanuparr` | app-template PVC (`retain: true`), no populator | `cleanuparr-r2` | 2000:2000 | 2Gi |
+| `ai/cliproxyapi` | app-template PVC (`retain: true`), no populator | `cliproxyapi-r2` | 1000:1000 | 2Gi |
 
 The retired `database/falkordb` claim is not listed: its r2 snapshots are kept frozen
 (skill `databases` [retired.md](../../databases/references/retired.md)).
@@ -244,7 +247,7 @@ removed with the operator (issue #2202 PR-6).
 
 ## Phase 5 - Verify
 
-1. Each of the 31 claims: the pinned snapshot ID from phase 3/4 is the one expected from phase 0,
+1. Each of the 32 claims: the pinned snapshot ID from phase 3/4 is the one expected from phase 0,
    and the app works: log in, data present. A file-count check needs a read-only reader pod on
    the claim, compared with the snapshot's `Snapshot.status.stats` (kopia skips `CACHEDIR.TAG`
    directories, so fewer files than the old live volume can be correct).

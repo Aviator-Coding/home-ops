@@ -59,7 +59,7 @@ failed instead of seeding empty PVCs. Restoring the fleet from r2 is a
 DR-mode commit **before** bootstrap, then
 [full-cluster-restore-r2.md](full-cluster-restore-r2.md).
 
-Three claims have no populator path and are hand-restored. The runbook names
+Six claims have no populator path and are hand-restored. The runbook names
 them: `database/surrealdb`, `selfhosted/paperless-ngx-media`, `syncthing-data`.
 `selfhosted/paperless-ngx` has had a kopiur populator since 2026-11-01.
 
