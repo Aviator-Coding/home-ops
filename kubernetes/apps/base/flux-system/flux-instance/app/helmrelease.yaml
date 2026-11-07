@@ -4,6 +4,9 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: flux-instance
+  annotations:
+    # Survives a Kustomization delete; prune: false on the Kustomization does not (deletionPolicy WaitForTermination).
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   interval: 1h
   chartRef:

@@ -4,11 +4,15 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: flux-operator
+  annotations:
+    # Survives a Kustomization delete; prune: false on the Kustomization does not (deletionPolicy WaitForTermination).
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   chartRef:
     kind: OCIRepository
     name: flux-operator
   interval: 1h
   values:
+    priorityClassName: system-cluster-critical
     serviceMonitor:
       create: true

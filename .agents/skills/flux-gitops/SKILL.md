@@ -73,6 +73,15 @@ flux-instance HelmRelease sets `values.instance.sync.path`.
     `flux reconcile source <kind> <name> -n <ns>`). A stuck source blocks
     every upgrade it serves while its HelmReleases stay Ready on the last
     artifact. This item is the alert's `runbook_url`.
+12. **Deleting a Kustomization deletes what it applied, whatever its
+    `prune` says.** `cluster-apps` patches `deletionPolicy:
+    WaitForTermination` onto every child, so removing an overlay entry
+    (or `kubectl delete ks`) garbage-collects the inventory. The guard that
+    holds is `kustomize.toolkit.fluxcd.io/prune: disabled` on the object
+    itself (as on Namespaces and buckets). It is set on the cilium, coredns,
+    flux-operator, flux-instance, rook-ceph and rook-ceph-cluster
+    HelmReleases; the CephCluster is rendered by the rook-ceph-cluster chart.
+    To retire one of them on purpose, delete the HelmRelease by hand.
 
 ## Where things live
 
