@@ -100,14 +100,6 @@ spec:
     server:
       podAnnotations:
         secret.reloader.stakater.com/reload: *secret
-      initContainers:
-        - name: init-db
-          # renovate: datasource=docker depName=ghcr.io/home-operations/postgres-init
-          image: ghcr.io/home-operations/postgres-init:18.6
-          envFrom:
-            - secretRef:
-                name: *secret
-
       metrics:
         enabled: true
         serviceMonitor:
