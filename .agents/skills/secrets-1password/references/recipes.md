@@ -33,22 +33,20 @@ kubectl -n <ns> get secret <name> -o jsonpath='{.data.<KEY>}' | base64 -d | wc -
 ## Postgres-backed apps
 
 The hostname is not a 1Password field. The ExternalSecret hardcodes
-`postgres-17-rw.database.svc.cluster.local`. Do not add `POSTGRES_DB_HOST`
+`postgres-18-rw.database.svc.cluster.local`. Do not add `POSTGRES_DB_HOST`
 to new items.
 
 The app item holds the app's own fields (`POSTGRES_DB_NAME`,
 `POSTGRES_DB_USER_NAME`, `POSTGRES_DB_USER_PASSWORD`, plus app secrets).
-`POSTGRES_SUPER_PASS` stays on the shared `cloudnative-pg` item in
-`Homelab`. The ExternalSecret extracts both. The `postgres-init` container
-(`ghcr.io/home-operations/postgres-init`) reads `INIT_POSTGRES_*`:
-
-| Env | Source |
-|---|---|
-| `INIT_POSTGRES_DBNAME` | app item `POSTGRES_DB_NAME` |
-| `INIT_POSTGRES_USER` | app item `POSTGRES_DB_USER_NAME` |
-| `INIT_POSTGRES_PASS` | app item `POSTGRES_DB_USER_PASSWORD` |
-| `INIT_POSTGRES_SUPER_PASS` | `cloudnative-pg` / `POSTGRES_SUPER_PASS` |
-| `INIT_POSTGRES_HOST` | hardcoded in the template |
+The app's ExternalSecret extracts only that item. The role and database are
+`DatabaseRole`/`Database` CRs from `components/cnpg-database`, whose own
+ExternalSecret reads `POSTGRES_DB_USER_PASSWORD` (or `CNPG_PASSWORD_KEY`) from
+the same item, so the role password and the app's connection string cannot
+drift. `POSTGRES_SUPER_PASS` stays on the shared `cloudnative-pg` item in
+`Homelab` and is never extracted into an app Secret. There are no
+`postgres-init` init containers or `INIT_POSTGRES_*` keys any more; the only
+remaining `postgres-init` Job is `ai/litellm-pgvector`'s schema Job. Skill
+`databases`.
 
 Generate passwords with `openssl rand`. Put them in 1Password, then let
 ESO project them. Never commit them, and never `kubectl apply` a
@@ -93,8 +91,9 @@ kubectl -n selfhosted get secret <app>-secret -o jsonpath='{.data}' | jq 'keys'
 ```
 
 Failure map: `SecretSyncedError` is a title or field-name mismatch;
-`READY False` is the `onepassword` store or Connect pods; a pod stuck in
-`postgres-init` is usually a wrong `POSTGRES_SUPER_PASS`.
+`READY False` is the `onepassword` store or Connect pods; an app that fails
+Postgres auth while its `<app>-db` Kustomization is Ready usually reads a
+different password field than `CNPG_PASSWORD_KEY`.
 
 ## Seeding a one-off Secret
 

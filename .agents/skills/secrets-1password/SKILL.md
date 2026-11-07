@@ -51,7 +51,7 @@ reason a new secret never arrives.
 
 ## Procedures
 
-- New item, postgres-init fields, which vault: [recipes.md](references/recipes.md).
+- New item, Postgres app fields, which vault: [recipes.md](references/recipes.md).
 
 ## Verify
 
