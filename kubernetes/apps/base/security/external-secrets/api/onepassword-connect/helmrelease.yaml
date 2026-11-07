@@ -101,6 +101,8 @@ spec:
             resources: *resources
     defaultPodOptions:
       securityContext:
+        seccompProfile:
+          type: RuntimeDefault
         runAsNonRoot: true
         runAsUser: 999
         runAsGroup: 999

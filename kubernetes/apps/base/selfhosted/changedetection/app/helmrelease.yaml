@@ -46,7 +46,16 @@ spec:
             env:
               PORT: &port 5000
               USE_X_SETTINGS: 1
+              # Apprise notification URLs carry credentials and are logged at INFO.
+              LOGGER_LEVEL: WARNING
               PLAYWRIGHT_DRIVER_URL: ws://localhost:3000/?stealth=1&--disable-web-security=true&--user-data-dir=~/browserless-cache-123
+            securityContext:
+              allowPrivilegeEscalation: false
+              # Writes Python bytecode and temp files outside /datastore.
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - ALL
             resources:
               requests:
                 cpu: 10m
@@ -65,6 +74,12 @@ spec:
               runAsUser: 999
               runAsGroup: 999
               runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              # Chrome writes its profile and crash data under the root filesystem.
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - ALL
             env:
               - {name: SCREEN_WIDTH, value: "1920"}
               - {name: SCREEN_HEIGHT, value: "1024"}

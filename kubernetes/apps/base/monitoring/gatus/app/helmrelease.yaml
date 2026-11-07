@@ -42,6 +42,12 @@ spec:
               limits:
                 memory: 64Mi
             restartPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
         containers:
           app:
             image:
